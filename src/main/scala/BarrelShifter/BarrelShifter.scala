@@ -14,59 +14,20 @@ class BarrelShifter extends Module{
     val Shift_Carry_Out = Output(UInt(1.W))
   })
 
-  // get first two bits of SHIFT_OP
-  private val ShiftType = io.Shift_OP(2, 1)
+  val fillBit = Mux(io.Shift_OP(2), 0.U, io.Shift_Data(31))
+  val shiftData = Cat(Mux(io.Shift_OP(2, 1) === "b11".U, io.Shift_Data, Fill(32, fillBit)), io.Shift_Data)
+  val shiftNum = Cat(io.Shift_Num === 0.U && io.Shift_OP(0),
+                     Mux(io.Shift_OP(0), io.Shift_Num, 32.U - io.Shift_Num))
 
-  when (io.Shift_OP(0) === 0.U && io.Shift_Num === 0.U) {
-    // no shift
-    io.Shift_Out := io.Shift_Data
-    io.Shift_Carry_Out := 0.U
-  }.elsewhen (ShiftType === "b00".U) {
-    // lsl
-    when (io.Shift_Num === 0.U) {
-      io.Shift_Out := io.Shift_Data
-      io.Shift_Carry_Out := 0.U
-    }.elsewhen (io.Shift_Num < 32.U) {
-      io.Shift_Out := io.Shift_Data << io.Shift_Num
-      io.Shift_Carry_Out := io.Shift_Data(32.U - io.Shift_Num)
-    }.otherwise {
-      io.Shift_Out := 0.U
-      io.Shift_Carry_Out := 0.U
-    }
-  }.elsewhen (ShiftType === "b01".U) {
-    // lsr
-    when (io.Shift_Num === 0.U) {
-      io.Shift_Out := 0.U
-      io.Shift_Carry_Out := io.Shift_Data(31)
-    }.elsewhen (io.Shift_Num < 32.U) {
-      io.Shift_Out := io.Shift_Data >> io.Shift_Num
-      io.Shift_Carry_Out := io.Shift_Data(io.Shift_Num - 1.U)
-    }.otherwise {
-      io.Shift_Out := 0.U
-      io.Shift_Carry_Out := 0.U
-    }
-  }.elsewhen (ShiftType === "b10".U) {
-    // asr
-    when (io.Shift_Num === 0.U) {
-      io.Shift_Out := Fill(32, io.Shift_Data(31))
-      io.Shift_Carry_Out := io.Shift_Data(31)
-    }.elsewhen (io.Shift_Num < 32.U) {
-      io.Shift_Out := Cat(Fill(32, io.Shift_Data(31)), io.Shift_Data) >> io.Shift_Num
-      io.Shift_Carry_Out := io.Shift_Data(io.Shift_Num - 1.U)
-    }.otherwise {
-      io.Shift_Out := Fill(32, io.Shift_Data(31))
-      io.Shift_Carry_Out := io.Shift_Data(31)
-    }
+  when (io.Shift_OP === "b110".U && io.Shift_Num === 0.U) {
+    io.Shift_Out := Cat(io.Carry_Flag, io.Shift_Data(31, 1))
+    io.Shift_Carry_Out := io.Shift_Data(0)
+  }.elsewhen (io.Shift_Num >= 32.U) {
+    io.Shift_Out := Fill(32, fillBit)
+    io.Shift_Carry_Out := fillBit
   }.otherwise {
-    // rxr/ror
-    when (io.Shift_Num === 0.U) {
-      io.Shift_Out := Cat(io.Carry_Flag, io.Shift_Data(31, 1))
-      io.Shift_Carry_Out := io.Shift_Data(0)
-    }.otherwise {
-      val ShiftNum = io.Shift_Num % 32.U
-      io.Shift_Out := Cat(io.Shift_Data, io.Shift_Data) >> ShiftNum
-      io.Shift_Carry_Out := io.Shift_Data(ShiftNum - 1.U)
-    }
+    io.Shift_Out := VecInit((0 to 31).map(i => shiftData(i.U + shiftNum))).asUInt
+    io.Shift_Carry_Out := shiftData(shiftNum)
   }
 }
 
