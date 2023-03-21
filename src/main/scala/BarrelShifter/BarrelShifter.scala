@@ -14,7 +14,6 @@ class BarrelShifter extends Module{
     val Shift_Carry_Out = Output(UInt(1.W))
   })
 
-  val tmp = io.Shift_Data(31)
   val fillBit = Mux(io.Shift_OP(2), io.Shift_Data(31), 0.U)
   val shiftType = io.Shift_OP(2, 1)
   val shiftData = Cat(Mux(io.Shift_OP(2, 1) === "b11".U, io.Shift_Data, Fill(32, fillBit)),
@@ -37,6 +36,6 @@ class BarrelShifter extends Module{
   }
 }
 
-object Main extends App {
+object BarrelShifterGen extends App {
   chisel3.emitVerilog(new BarrelShifter, Array("--target-dir", "gen"))
 }
