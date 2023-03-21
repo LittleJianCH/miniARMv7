@@ -128,6 +128,7 @@ local.properties
 *.i*86
 *.x86_64
 *.hex
+*.vcd
 
 # Debug files
 *.dSYM/
