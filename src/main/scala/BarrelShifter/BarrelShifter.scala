@@ -19,7 +19,7 @@ class BarrelShifter extends Module{
   val shiftData = Cat(Mux(io.Shift_OP(2, 1) === "b11".U, io.Shift_Data, Fill(32, fillBit)),
                       io.Shift_Data, Fill(32, 0.U))
   val shiftNum = Mux(io.Shift_Num === 0.U && io.Shift_OP(0) === 0.U,
-                     32.U,
+                     Mux(shiftType === "b00".U, 0.U, 32.U),
                      Mux(shiftType === "b11".U, io.Shift_Num % 32.U, io.Shift_Num))
 
   when (io.Shift_OP === "b110".U && io.Shift_Num === 0.U) {

@@ -24,7 +24,7 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
 
       c.io.Shift_Num.poke(0.U)
       c.io.Shift_OP.poke("b000".U)
-      c.io.Shift_Out.expect("h00000000".U)
+      c.io.Shift_Out.expect("h12345678".U)
       c.io.Shift_Carry_Out.expect(0.U)
     }
   }
