@@ -10,7 +10,8 @@ lazy val root = (project in file("."))
     name := "miniARMv7",
     libraryDependencies ++= Seq(
       "edu.berkeley.cs" %% "chisel3" % chiselVersion,
-      "edu.berkeley.cs" %% "chiseltest" % "0.5.4" % "test"
+      "edu.berkeley.cs" %% "chiseltest" % "0.5.4" % "test",
+      "org.scalaz" %% "scalaz-core" % "7.3.7"
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
