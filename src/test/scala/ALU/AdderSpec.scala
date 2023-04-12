@@ -31,11 +31,13 @@ class AdderSpec extends AnyFreeSpec with ChiselScalatestTester {
 
   "test inc" in {
     test(new Inc(TEST_WIDTH)) { p =>
-      val a = scala.util.Random.nextLong(1L << TEST_WIDTH)
+      for (i <- (0 to TEST_TIMES)) {
+        val a = scala.util.Random.nextLong(1L << TEST_WIDTH)
 
-      p.io.in.poke(a.U)
-      p.io.out.expect((a + 1).U(TEST_WIDTH - 1, 0))
-      p.io.carry.expect((a + 1).U(TEST_WIDTH))
+        p.io.in.poke(a.U)
+        p.io.out.expect((a + 1).U(TEST_WIDTH - 1, 0))
+        p.io.carry.expect((a + 1).U(TEST_WIDTH))
+      }
     }
   }
 }
