@@ -83,7 +83,7 @@ class ALU_Core extends Module {
     (io.op === "b1000".U) -> 0.U
   ))
 
-  adder.io.cin := Mux(io.op >= "b101".U && io.op <= "b111".U, io.cin, 0.U)
+  adder.io.cin := Mux(io.op === "b101".U || io.op === "b110".U || io.op === "b111".U, io.cin, 0.U)
 
   inc4.io.in := adder.io.sum(31, 2)
 
