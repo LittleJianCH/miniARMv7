@@ -3,6 +3,48 @@ package BarrelShifter
 import chisel3._
 import chisel3.util._
 
+object BarrelShifterSim {
+  def calc(data: Int, op: Int, _num: Int, carryFlag: Int): (Int, Int) = {
+    var num: Int = _num
+    op / 2 match {
+      case 0 =>
+        if (num >= 32) {
+          (0, 0)
+        } else {
+          (data << num, if (num == 0) 0 else (data >> (32 - num)) & 1)
+        }
+      case 1 =>
+        if (num == 0 && op == 2) {
+          num = 32
+        }
+
+        if (num >= 32) {
+          (0, 0)
+        } else {
+          (data >>> num, if (num == 0) 0 else (data >>> (num - 1)) & 1)
+        }
+      case 2 =>
+        if (num == 0 && op == 4) {
+          num = 32
+        }
+
+        if (num >= 32) {
+          ((data >> 31 & 1) * 0xffffffff, (data >> 31) & 1)
+        } else {
+          (data >> num, if (num == 0) 0 else (data >> (num - 1)) & 1)
+        }
+
+      case 3 =>
+        if (num == 0 && op == 6) {
+          ((carryFlag << 31) | (data >>> 1), data & 1)
+        } else {
+          num = num % 32
+          ((data >>> num) | (data << (32 - num)), if (num == 0) 0 else (data >>> (num - 1)) & 1)
+        }
+    }
+  }
+}
+
 class BarrelShifter extends Module{
   val io = IO(new Bundle{
     val Shift_OP = Input(UInt(3.W))

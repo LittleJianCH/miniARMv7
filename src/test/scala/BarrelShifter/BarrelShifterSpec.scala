@@ -9,7 +9,7 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
     BigInt(Integer.toUnsignedString(i)).asUInt
   }
 
-  val TEST_TIMES = 5000
+  val TEST_TIMES = 20000
 
   "test logic shift left " in {
     test(new BarrelShifter) { c =>
@@ -32,15 +32,6 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
       c.io.Shift_OP.poke("b000".U)
       c.io.Shift_Out.expect("h12345678".U)
       c.io.Shift_Carry_Out.expect(0.U)
-
-      c.io.Shift_OP.poke("b001".U)
-      for (i <- 0 until TEST_TIMES) {
-        val shiftNum = scala.util.Random.nextInt(32)
-        val shiftData = scala.util.Random.nextInt()
-        c.io.Shift_Num.poke(shiftNum.U)
-        c.io.Shift_Data.poke(toUInt(shiftData))
-        c.io.Shift_Out.expect(toUInt(shiftData << shiftNum)(31, 0))
-      }
     }
   }
 
@@ -67,15 +58,6 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
       c.io.Shift_OP.poke("b010".U)
       c.io.Shift_Num.poke(0.U)
       c.io.Shift_Out.expect("h00000000".U)
-
-      c.io.Shift_OP.poke("b011".U)
-      for (i <- 0 until TEST_TIMES) {
-        val shiftNum = scala.util.Random.nextInt(32)
-        val shiftData = scala.util.Random.nextInt()
-        c.io.Shift_Num.poke(shiftNum.U)
-        c.io.Shift_Data.poke(toUInt(shiftData))
-        c.io.Shift_Out.expect(toUInt(shiftData >>> shiftNum)(31, 0))
-      }
     }
   }
 
@@ -99,15 +81,6 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
       c.io.Shift_Num.poke(100.U)
       c.io.Shift_Out.expect("hffffffff".U)
       c.io.Shift_Carry_Out.expect(1.U)
-
-      c.io.Shift_OP.poke("b101".U)
-      for (i <- 0 until TEST_TIMES) {
-        val shiftNum = scala.util.Random.nextInt(32)
-        val shiftData = scala.util.Random.nextInt()
-        c.io.Shift_Num.poke(shiftNum.U)
-        c.io.Shift_Data.poke(toUInt(shiftData))
-        c.io.Shift_Out.expect(toUInt(shiftData >> shiftNum)(31, 0))
-      }
     }
   }
 
@@ -134,14 +107,24 @@ class BarrelShifterSpec extends AnyFreeSpec with ChiselScalatestTester {
       c.io.Carry_Flag.poke(1.U)
       c.io.Shift_Out.expect("h80000000".U)
       c.io.Shift_Carry_Out.expect(1.U)
+    }
+  }
 
-      c.io.Shift_OP.poke("b111".U)
+  "random test" in {
+    test(new BarrelShifter) { bs =>
       for (i <- 0 until TEST_TIMES) {
         val shiftNum = scala.util.Random.nextInt(32)
         val shiftData = scala.util.Random.nextInt()
-        c.io.Shift_Num.poke(shiftNum.U)
-        c.io.Shift_Data.poke(toUInt(shiftData))
-        c.io.Shift_Out.expect(toUInt((shiftData >>> shiftNum) | (shiftData << (32 - shiftNum)))(31, 0))
+        val shiftOp = scala.util.Random.nextInt(8)
+        val carryFlag = scala.util.Random.nextInt(2)
+        bs.io.Shift_Num.poke(shiftNum.U)
+        bs.io.Shift_Data.poke(toUInt(shiftData))
+        bs.io.Shift_OP.poke(shiftOp.U)
+        bs.io.Carry_Flag.poke(carryFlag.U)
+
+        val result = BarrelShifterSim.calc(shiftData, shiftOp, shiftNum, carryFlag)
+        bs.io.Shift_Out.expect(toUInt(result._1)(31, 0))
+        bs.io.Shift_Carry_Out.expect(result._2.U)
       }
     }
   }
