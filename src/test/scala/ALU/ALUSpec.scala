@@ -21,7 +21,6 @@ class ALUSpec extends AnyFreeSpec with ChiselScalatestTester {
     test(new ALU) { p =>
       for (i <- 0 to TEST_TIMES) {
         val supportOps = Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15)
-        val shiftCarryOutOps = Array(0, 1, 12, 14, 15)
 
         val aluOp = supportOps(scala.util.Random.nextInt(supportOps.length))
         val aluA = scala.util.Random.nextInt()
@@ -40,14 +39,20 @@ class ALUSpec extends AnyFreeSpec with ChiselScalatestTester {
         val barrelShifterResult = BarrelShifterSim.calc(aluB, barrelShifterOp, barrelShifterNum, aluCin)
         val aluResult = ALUSim.calc(aluA, barrelShifterResult._1, aluCin, aluOp)
 
-        if (shiftCarryOutOps.contains(aluOp)) {
+        if (Array(0, 1, 12, 14, 15).contains(aluOp)) {
           p.io.cout.expect(barrelShifterResult._2.U)
-        } else {
-          p.io.cout.expect(((aluResult >> 32) & 1).U)
+        } else if (Array(2, 3, 4, 5, 6, 7, 10).contains(aluOp)) {
+          if (p.io.cout.peekInt() != (if (aluResult._2) 1 else 0)) {
+            println(s"aluOp: $aluOp, aluA: $aluA, aluB: $aluB, aluCin: $aluCin, barrelShifterOp: $barrelShifterOp, barrelShifterNum: $barrelShifterNum")
+            println(s"barrelShifterResult: ${barrelShifterResult._1}, ${barrelShifterResult._2}")
+            println(s"aluResult: ${aluResult._1}, ${aluResult._2}")
+          }
+
+          p.io.cout.expect(aluResult._2.B)
         }
 
-        p.io.out.expect(toUInt(aluResult)(31, 0))
-        p.io.zout.expect((aluResult == 0).B)
+        p.io.out.expect(toUInt(aluResult._1)(31, 0))
+        p.io.zout.expect((aluResult._1 == 0).B)
       }
     }
   }

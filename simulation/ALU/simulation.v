@@ -49,6 +49,12 @@ module simulation;
 
     op = 4; a = 18446744073465807193; b = 18446744073140934943; cin = 0; shift_op = 1; shift_num = 22; #30
 
+    op = 10; a = -70483075; b = 179710016; cin = 1; shift_op = 0; shift_num = 26; #30
+
+    op = 10; a = 1922210545; b = -479820296; cin = 1; shift_op = 0; shift_num = 29; #30
+
+    op = 4; a = -671459141; b = -734626427; cin = 0; shift_op = 1; shift_num = 28; #30
+
     $finish;
   end
 endmodule

@@ -6,11 +6,11 @@ import chisel3.util._
 import BarrelShifter._
 
 object ALUSim {
-  def calc(_a: Int, _b: Int, cin: Int, op: Int): Long = {
-    val a: Long = _a.toLong & ((1L << 32) - 1);
-    val b: Long = _b.toLong & ((1L << 32) - 1);
+  def calc(_a: Int, _b: Int, cin: Int, op: Int): (Int, Boolean  ) = {
+    val a: Long = _a.toLong
+    val b: Long = _b.toLong
 
-    op match {
+    val result = op match {
       case 0 => a & b
       case 1 => a ^ b
       case 2 => a - b
@@ -26,7 +26,20 @@ object ALUSim {
       case 14 => a & (~b)
       case 15 => ~b
     }
+
+    (result.toInt, (((result >> 32) & 1) ^ ((op >> 1) & 1)) == 1)
   }
+}
+
+class Negator(width: Int) extends Module {
+  val io = IO(new Bundle {
+    val in = Input(UInt(width.W))
+    val out = Output(UInt(width.W))
+  })
+
+  val inc = Module(new Inc(width))
+  inc.io.in := ~io.in
+  io.out := inc.io.out
 }
 
 class ALU_Core extends Module {
@@ -44,18 +57,21 @@ class ALU_Core extends Module {
     val cout = Output(UInt(1.W))
   })
 
-  val adder = Module(new Adder(32))
-  val incA = Module(new Inc(32))
-  val incB = Module(new Inc(32))
-  val inc4 = Module(new Inc(30))
-  val negatorA = Module(new Negator(32))
-  val negatorB = Module(new Negator(32))
+  val adder = Module(new Adder(33))
+  val inc4 = Module(new Inc(31))
+  val incA = Module(new Inc(33))
+  val incB = Module(new Inc(33))
+  val negatorA = Module(new Negator(33))
+  val negatorB = Module(new Negator(33))
 
-  incA.io.in := io.a
-  negatorA.io.in := Mux(io.op === "b0111".U, incA.io.out, io.a)
+  val a33 = Cat(io.a(31), io.a)
+  val b33 = Cat(io.b(31), io.b)
 
-  incB.io.in := io.b
-  negatorB.io.in := Mux(io.op === "b0110".U, incB.io.out, io.b)
+  incA.io.in := a33
+  incB.io.in := b33
+
+  negatorA.io.in := Mux(io.op === "b0111".U, incA.io.out, a33)
+  negatorB.io.in := Mux(io.op === "b0110".U, incB.io.out, b33)
 
   adder.io.a := MuxCase(io.a, Array(
     (io.op === "b0011".U || io.op === "b0111".U) -> negatorA.io.out,
@@ -69,15 +85,12 @@ class ALU_Core extends Module {
 
   adder.io.cin := Mux(io.op === "b101".U || io.op === "b110".U || io.op === "b111".U, io.cin, 0.U)
 
-  inc4.io.in := adder.io.sum(31, 2)
+  inc4.io.in := adder.io.sum(32, 2)
 
-  io.out := Mux(io.op === "b1010".U, Cat(inc4.io.out, adder.io.sum(1, 0)), adder.io.sum)
-  io.cout := (adder.io.cout ^ Mux(io.op === "b0110".U, incB.io.carry, 0.U)
-                            ^ Mux(io.op === "b0111".U, incA.io.carry, 0.U)
-                            ^ Mux(io.op === "b1010".U, inc4.io.carry, 0.U)
-                            ^ Mux(io.op === "b0010".U || io.op === "b0011".U
-                               || io.op === "b0110".U || io.op === "b0111".U
-                               || io.op === "b1010".U, 1.U, 0.U))
+  val r33 = Mux(io.op === "b1010".U, Cat(inc4.io.out, adder.io.sum(1, 0)), adder.io.sum)
+
+  io.out := r33(31, 0)
+  io.cout := r33(32) ^ io.op(1)
 }
 
 class ALU extends Module {
