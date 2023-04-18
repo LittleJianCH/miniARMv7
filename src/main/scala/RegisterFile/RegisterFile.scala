@@ -3,7 +3,7 @@ package RegisterFile
 import chisel3._
 import chisel3.util._
 
-class AdderTransfer extends Module {
+class AddressTransfer extends Module {
   val io = IO(new Bundle {
     val mode = Input(UInt(5.W))
     val addr = Input(UInt(4.W))
@@ -48,29 +48,29 @@ class RegisterFile extends Module {
   val regsCount = 15 + 1 + 7 + 2 + 2 + 2 + 2 + 2 + 2 // 35
   val regs = withClock(negClock)(Reg(Vec(regsCount, UInt(32.W))))
 
-  val adderTransferA = Module(new AdderTransfer)
-  val adderTransferB = Module(new AdderTransfer)
-  val adderTransferC = Module(new AdderTransfer)
-  val adderTransferW = Module(new AdderTransfer)
+  val addrTransferA = Module(new AddressTransfer)
+  val addrTransferB = Module(new AddressTransfer)
+  val addrTransferC = Module(new AddressTransfer)
+  val addrTransferW = Module(new AddressTransfer)
 
-  adderTransferA.io.mode := io.mode
-  adderTransferA.io.addr := io.rAddrA
+  addrTransferA.io.mode := io.mode
+  addrTransferA.io.addr := io.rAddrA
 
-  adderTransferB.io.mode := io.mode
-  adderTransferB.io.addr := io.rAddrB
+  addrTransferB.io.mode := io.mode
+  addrTransferB.io.addr := io.rAddrB
 
-  adderTransferC.io.mode := io.mode
-  adderTransferC.io.addr := io.rAddrC
+  addrTransferC.io.mode := io.mode
+  addrTransferC.io.addr := io.rAddrC
 
-  adderTransferW.io.mode := io.mode
-  adderTransferW.io.addr := io.wAddr
+  addrTransferW.io.mode := io.mode
+  addrTransferW.io.addr := io.wAddr
 
-  io.rDataA := regs(adderTransferA.io.out)
-  io.rDataB := regs(adderTransferB.io.out)
-  io.rDataC := regs(adderTransferC.io.out)
+  io.rDataA := regs(addrTransferA.io.out)
+  io.rDataB := regs(addrTransferB.io.out)
+  io.rDataC := regs(addrTransferC.io.out)
 
   when (io.wReg === 1.U) {
-    regs(adderTransferW.io.out) := io.wData
+    regs(addrTransferW.io.out) := io.wData
   }
 
   when (io.wPCReg === 1.U) {
