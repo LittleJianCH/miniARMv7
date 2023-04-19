@@ -12,23 +12,16 @@ class AddressTransfer extends Module {
 
   val errR = 35 // if the register doesn't appear in the mode, return 35
 
-  io.out := MuxCase(errR.U, Seq(
-    (VecInit((8 to 14).map(_.U)).contains(io.addr) && io.mode === "b10001".U) ->
-      VecInit((Seq.fill(8)(0) ++ (16 to 22)).map(_.U))(io.addr),
-    VecInit(Seq(13.U, 14.U)).contains(io.addr) ->
-      MuxLookup(io.mode, errR.U, Seq(
-          "b10000".U -> io.addr,
-          "b10010".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(23.U, 24.U))(io.addr),
-          "b10011".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(25.U, 26.U))(io.addr),
-          "b10110".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(27.U, 28.U))(io.addr),
-          "b10111".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(29.U, 30.U))(io.addr),
-          "b11010".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(31.U, errR.U))(io.addr),
-          "b11011".U -> VecInit(Seq.fill(13)(0.U) ++ Seq(32.U, 33.U))(io.addr),
-          "b11111".U -> io.addr,
-      )),
-    (VecInit((0 to 12).appended(15).map(_.U)).contains(io.addr) || io.mode === "b10000".U
-                                                                      || io.mode === "b11111".U) ->
-      io.addr,
+  io.out := MuxLookup(io.addr, errR.U, Seq(
+    "b10000".U -> io.addr,
+    "b10001".U -> VecInit(((0 to 7) ++ (16 to 22) ++ Seq(15)).map(_.U))(io.addr),
+    "b10010".U -> VecInit(((0 to 12) ++ Seq(23, 24, 15)).map(_.U))(io.addr),
+    "b10011".U -> VecInit(((0 to 12) ++ Seq(25, 26, 15)).map(_.U))(io.addr),
+    "b10110".U -> VecInit(((0 to 12) ++ Seq(27, 28, 15)).map(_.U))(io.addr),
+    "b10111".U -> VecInit(((0 to 12) ++ Seq(29, 30, 15)).map(_.U))(io.addr),
+    "b11010".U -> VecInit(((0 to 12) ++ Seq(31, errR, 15)).map(_.U))(io.addr),
+    "b11011".U -> VecInit(((0 to 12) ++ Seq(32, 33, 15)).map(_.U))(io.addr),
+    "b11111".U -> io.addr,
   ))
 }
 
