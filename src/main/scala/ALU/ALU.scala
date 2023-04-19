@@ -6,7 +6,7 @@ import chisel3.util._
 import BarrelShifter._
 
 object ALUSim {
-  def calc(_a: Int, _b: Int, cin: Int, op: Int): (Int, Boolean  ) = {
+  def calc(_a: Int, _b: Int, cin: Int, op: Int): (Int, Boolean) = {
     val a: Long = _a.toLong
     val b: Long = _b.toLong
 
@@ -73,17 +73,17 @@ class ALU_Core extends Module {
   negatorA.io.in := Mux(io.op === "b0111".U, incA.io.out, a33)
   negatorB.io.in := Mux(io.op === "b0110".U, incB.io.out, b33)
 
-  adder.io.a := MuxCase(io.a, Array(
+  adder.io.a := MuxCase(a33, Array(
     (io.op === "b0011".U || io.op === "b0111".U) -> negatorA.io.out,
     (io.op === "b1101".U) -> 0.U
   ))
 
-  adder.io.b := MuxCase(io.b, Array(
+  adder.io.b := MuxCase(b33, Array(
     (io.op === "b0010".U || io.op === "b0110".U || io.op === "b1010".U) -> negatorB.io.out,
     (io.op === "b1000".U) -> 0.U
   ))
 
-  adder.io.cin := Mux(io.op === "b101".U || io.op === "b110".U || io.op === "b111".U, io.cin, 0.U)
+  adder.io.cin := Mux(io.op === "b0101".U || io.op === "b0110".U || io.op === "b0111".U, io.cin, 0.U)
 
   inc4.io.in := adder.io.sum(32, 2)
 

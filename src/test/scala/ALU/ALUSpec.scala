@@ -42,12 +42,6 @@ class ALUSpec extends AnyFreeSpec with ChiselScalatestTester {
         if (Array(0, 1, 12, 14, 15).contains(aluOp)) {
           p.io.cout.expect(barrelShifterResult._2.U)
         } else if (Array(2, 3, 4, 5, 6, 7, 10).contains(aluOp)) {
-          if (p.io.cout.peekInt() != (if (aluResult._2) 1 else 0)) {
-            println(s"aluOp: $aluOp, aluA: $aluA, aluB: $aluB, aluCin: $aluCin, barrelShifterOp: $barrelShifterOp, barrelShifterNum: $barrelShifterNum")
-            println(s"barrelShifterResult: ${barrelShifterResult._1}, ${barrelShifterResult._2}")
-            println(s"aluResult: ${aluResult._1}, ${aluResult._2}")
-          }
-
           p.io.cout.expect(aluResult._2.B)
         }
 
