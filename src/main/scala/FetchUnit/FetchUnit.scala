@@ -5,7 +5,8 @@ import chisel3.util._
 
 import ALU.Inc
 
-class FetchUnit extends Module {
+class FetchUnit(instrs: Seq[String] = Seq()) extends Module {
+  // the instrs are represented as binary strings *without* the leading "b"
   val io = IO(new Bundle {
     val nzcv = Input(UInt(4.W))
     val pc = Input(UInt(32.W))
@@ -18,11 +19,15 @@ class FetchUnit extends Module {
   inc4.io.in := io.pc(31, 2)
   io.pcNext := Cat(inc4.io.out, io.pc(1, 0))
 
-  val instrROM = Module(new InstrROM)
-  instrROM.io.clka := clock
-  instrROM.io.addra := io.pc(7, 2)
+  val instrROM = VecInit((0 to 63).map(i =>
+    if (i < instrs.length) {
+      ("b" ++ instrs(i)).U(32.W)
+    } else {
+      0.U(32.W)
+    }
+  ))
 
-  io.instr := instrROM.io.douta
+  io.instr := instrROM(io.pc(7, 2))
 
   val condCode = io.instr(31, 28)
 
