@@ -1,5 +1,6 @@
 package BarrelShifter
 
+import ALU.BarrelShifter.{BarrelShifter, BarrelShifterSim}
 import chisel3._
 import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec

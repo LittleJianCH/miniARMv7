@@ -1,10 +1,10 @@
 package ALU
 
-import BarrelShifter._
-
 import chisel3._
 import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec
+
+import BarrelShifter._
 
 class ALUSpec extends AnyFreeSpec with ChiselScalatestTester {
   def toUnsigned(i: Long): BigInt = {
