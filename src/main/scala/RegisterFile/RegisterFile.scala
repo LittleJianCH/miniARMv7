@@ -12,7 +12,7 @@ class AddressTransfer extends Module {
 
   val errR = 35 // if the register doesn't appear in the mode, return 35
 
-  io.out := MuxLookup(io.addr, errR.U, Seq(
+  io.out := MuxLookup(io.mode, errR.U, Seq(
     "b10000".U -> io.addr,
     "b10001".U -> VecInit(((0 to 7) ++ (16 to 22) ++ Seq(15)).map(_.U))(io.addr),
     "b10010".U -> VecInit(((0 to 12) ++ Seq(23, 24, 15)).map(_.U))(io.addr),
@@ -40,6 +40,7 @@ class RegisterFile extends Module {
     val rDataA = Output(UInt(32.W))
     val rDataB = Output(UInt(32.W))
     val rDataC = Output(UInt(32.W))
+    val rPC = Output(UInt(32.W))
   })
 
   // we will write to the register file on the falling edge of the clock
@@ -48,7 +49,7 @@ class RegisterFile extends Module {
   // R0 ~ R14, PC(R15), R8_fiq ~ R14_fiq, R13_irq ~ R14_irq, R13_svc ~ R14_svc,
   // R13_mon ~ R14_mon, R13_abt ~ R14_abt, R13_hyp, R13_und ~ R14_und
   val regsCount = 15 + 1 + 7 + 2 + 2 + 2 + 2 + 1 + 2 // 34
-  val regs = withClock(negClock)(Reg(Vec(regsCount, UInt(32.W))))
+  val regs = withClock(negClock)(RegInit(VecInit(Seq.fill(regsCount)(0.U(32.W)))))
 
   val addrTransferA = Module(new AddressTransfer)
   val addrTransferB = Module(new AddressTransfer)
@@ -83,6 +84,8 @@ class RegisterFile extends Module {
   when (io.wPCReg === 1.U) {
     regs(15) := io.wPC
   }
+
+  io.rPC := regs(15)
 }
 
 object RegisterFileGen extends App {
