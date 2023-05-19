@@ -1,7 +1,7 @@
 package Decoder
 
 import chisel3._
-import chisel3.util._
+import scala.annotation.varargs
 
 class Decoder extends Module {
   val io = IO(new Bundle {
@@ -28,51 +28,70 @@ class Decoder extends Module {
 
     // For NZCV
     val nzcvEN = Output(Bool())
+
+    val err = Output(Bool())
   })
 
   val I = io.IR
-  val cond = I(31, 28)
-  val OP = I(24, 21)
-  val S = I(20)
-  val rn = I(19, 16)
-  val rd = I(15, 12)
-
-  // 3.U will be treated as errorType temporarily
-  val DPtype = MuxCase(3.U, Array(
-    (I(27, 25) === "b000".U && I(4) === 0.U && rd =/= 15.U) -> 0.U,
-    (I(27, 25) === "b000".U && I(7) === 0.U && I(4) === 1.U && rd =/= 15.U) -> 1.U,
-    (I(27, 25) === "b001".U && rd =/= 15.U) -> 2.U,
-  ))
+  io.nzcvEN := I(20)
+  io.err := false.B
 
   // some default values to pass the compilation
+  // our code won't run depending the default values (not like io.err)
+  io.rAddrA := 0.U
   io.rAddrB := 0.U
   io.rAddrC := 0.U
+  io.aluA := 0.U
   io.aluB := 0.U
+  io.aluOp := 0.U
   io.aluShiftOp := 0.U
   io.aluShiftNum := 0.U
+  io.wData := 0.U
+  io.wAddr := 0.U
 
-  when (DPtype === 0.U) {
-    io.rAddrB := I(3, 0)
-    io.aluB := io.rDataB
-    io.aluShiftOp := Cat(I(6, 5), 0.U)
-    io.aluShiftNum := I(11, 7)
-  } .elsewhen (DPtype === 1.U) {
-    io.rAddrB := I(3, 0)
-    io.aluB := io.rDataB
-    io.aluShiftOp := Cat(I(6, 5), 1.U)
-    io.aluShiftNum := I(11, 8)
-  } .elsewhen (DPtype === 2.U) {
-    io.aluB := I(7, 0)
-    io.aluShiftOp := "b111".U
-    io.aluShiftNum := I(11, 8)
+  @varargs def matchE(handles: (Bool, () => Any)*): Unit = {
+    handles.foldLeft(when(false.B) {}) { (whens, handle) =>
+      whens.elsewhen(handle._1)(handle._2())
+    }.otherwise {
+      io.err := true.B
+    }
   }
 
-  io.rAddrA := rn
-  io.aluA := io.rDataA
-  io.aluOp := OP
+  matchE(
+    (I(27, 26) === "b00".U) -> (()=> matchE(
+      // Data-processing and miscellaneous instructions
+      (!(I(24, 23) === "b10".U && I(20) === 0.B)) -> {()=>
+        // Data-processing
+        io.rAddrA := I(19, 16)
+        io.aluA := io.rDataA
+        io.aluOp := I(24, 21)
 
-  io.wAddr := rd
-  io.wData := io.aluOut
+        io.wAddr := I(15, 12)
+        io.wData := io.aluOut
 
-  io.nzcvEN := S
+        matchE(
+          (I(25) === 0.B) -> {()=>
+            io.rAddrB := I(3, 0)
+            io.aluB := io.rDataB
+            io.aluShiftOp := I(6, 4)
+            matchE(
+              (I(4) === 0.B) -> {()=>
+                // Data-processing (register)
+                io.aluShiftNum := I(11, 7)
+              },
+              (I(7) === 0.B && I(4) === 1.B) -> { () =>
+                // Data-processing (register-shifted register)
+                io.aluShiftNum := I(11, 8)
+              })
+          },
+          (I(25) === 1.B) -> {()=>
+            // Data-processing (immediate)
+            io.aluB := I(7, 0)
+            io.aluShiftOp := "b111".U
+            io.aluShiftNum := I(11, 8)
+          }
+        )
+      }
+    ))
+  )
 }
