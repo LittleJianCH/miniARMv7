@@ -41,6 +41,8 @@ class RegisterFile extends Module {
     val rDataB = Output(UInt(32.W))
     val rDataC = Output(UInt(32.W))
     val rPC = Output(UInt(32.W))
+
+    val regs = Output(Vec(34, UInt(6.W)))
   })
 
   // we will write to the register file on the falling edge of the clock
@@ -50,6 +52,7 @@ class RegisterFile extends Module {
   // R13_mon ~ R14_mon, R13_abt ~ R14_abt, R13_hyp, R13_und ~ R14_und
   val regsCount = 15 + 1 + 7 + 2 + 2 + 2 + 2 + 1 + 2 // 34
   val regs = withClock(negClock)(RegInit(VecInit(Seq.fill(regsCount)(0.U(32.W)))))
+  io.regs := regs
 
   val addrTransferA = Module(new AddressTransfer)
   val addrTransferB = Module(new AddressTransfer)

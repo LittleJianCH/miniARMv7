@@ -9,7 +9,7 @@ import ALU._
 import RegisterFile._
 import FetchUnit._
 
-class CPU(instrs: Seq[String] = Seq()) extends Module {
+class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   object State extends ChiselEnum {
     val IF, ID, EX, WB = Value
     // FetchUnit, Controller, ALU, RegisterFile & NZCV
@@ -26,6 +26,8 @@ class CPU(instrs: Seq[String] = Seq()) extends Module {
     val IR = Output(UInt(32.W))
     val PC = Output(UInt(8.W))
     val nzcv = Output(UInt(4.W))
+    val done = Output(Bool())
+    val regs = Output(Vec(34, UInt(6.W)))
   })
 
   val negClock = (~clock.asUInt).asBool.asClock
@@ -36,9 +38,11 @@ class CPU(instrs: Seq[String] = Seq()) extends Module {
   val fetchUnit = Module(new FetchUnit(instrs))
 
   val nzcv = withClock(negClock)(RegInit(0.U(4.W)))
-  val IR = RegInit(0.U(32.W))
-  val state = RegInit(State.IF)
-  val cond = RegInit(false.B)
+  val IR = withClock(negClock)(RegInit(0.U(32.W)))
+  val nextState = withClock(negClock)(RegInit(State.IF))
+  val state = RegNext(nextState, State.IF)
+  val cond = withClock(negClock)(RegInit(false.B))
+  val doneReg = withClock(negClock)(RegInit(false.B))
 
   alu.io.shift_num := decoder.io.aluShiftNum
   alu.io.a := decoder.io.aluA
@@ -69,29 +73,32 @@ class CPU(instrs: Seq[String] = Seq()) extends Module {
 
   decoder.io.IR := IR
 
-  switch (state) {
-    is (State.IF) {
-      cond := fetchUnit.io.cond
-      when (fetchUnit.io.cond) {
-        IR := fetchUnit.io.instr
-      }
-      state := State.ID
-    }
-
-    is (State.ID) {
-      state := State.EX
-    }
-
-    is (State.EX) {
-      state := State.WB
-    }
-
-    is (State.WB) {
-      when (cond && decoder.io.nzcvEN) {
-        nzcv := Cat(alu.io.nout, alu.io.zout, alu.io.cout, alu.io.vout)
+  when (!doneReg) {
+    switch(state) {
+      is(State.IF) {
+        cond := fetchUnit.io.cond
+        when(fetchUnit.io.cond) {
+          IR := fetchUnit.io.instr
+        }
+        nextState := State.ID
       }
 
-      state := State.IF
+      is(State.ID) {
+        doneReg := (IR === 0.U || doneReg)
+        nextState := State.EX
+      }
+
+      is(State.EX) {
+        nextState := State.WB
+      }
+
+      is(State.WB) {
+        when(cond && decoder.io.nzcvEN) {
+          nzcv := Cat(alu.io.nout, alu.io.zout, alu.io.cout, alu.io.vout)
+        }
+
+        nextState := State.IF
+      }
     }
   }
 
@@ -106,19 +113,46 @@ class CPU(instrs: Seq[String] = Seq()) extends Module {
   io.IR := IR
   io.PC := registerFile.io.rPC
   io.nzcv := nzcv
+  io.done := doneReg
+  io.regs := registerFile.io.regs
+}
+
+class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
+  // Almost same as CPU_Regs, but without registers exposed
+  val io = IO(new Bundle {
+    val writePC = Output(Bool())
+    val writeIR = Output(Bool())
+    val writeReg = Output(Bool())
+    val A = Output(UInt(32.W))
+    val B = Output(UInt(32.W))
+    val C = Output(UInt(32.W))
+    val F = Output(UInt(32.W))
+    val IR = Output(UInt(32.W))
+    val PC = Output(UInt(8.W))
+    val nzcv = Output(UInt(4.W))
+    val done = Output(Bool())
+  })
+
+  val cpu = Module(new CPU_Regs(instrs))
+
+  io.writePC := cpu.io.writePC
+  io.writeIR := cpu.io.writeIR
+  io.writeReg := cpu.io.writeReg
+  io.A := cpu.io.A
+  io.B := cpu.io.B
+  io.C := cpu.io.C
+  io.F := cpu.io.F
+  io.IR := cpu.io.IR
+  io.PC := cpu.io.PC
+  io.nzcv := cpu.io.nzcv
+  io.done := cpu.io.done
 }
 
 object CPU_Gen extends App {
   val instrs = Seq(
     "11110011101100000000000000000011", //r0<-3
-    "11110011101100000000000100000100", //r1<-4
+    "11110011101100000001000100000100", //r1<-(4 >> 1)
     "11110010010100000000000000000011", //SUBS r0 #3
-    "11110001111100000000000000000001", //MVN r0 r1<<0
-    "11110000001100000000000000000001", //EORS r0 r0 r1<<0
-    "11110000101100000000000000000001", //ADCS r0 r0 r1<<0
-    "11110001010100000000000000000001", //CMP r0 r1<<0
-    "11110000100100000000000000010001", //ADDS r0 r0 r1<<0
-    "11110001100100000000000000010001", //ORRS r0 r0 r1<<0
   )
-  chisel3.emitVerilog(new CPU(instrs), Array("--target-dir", "gen"))
+  chisel3.emitVerilog(new CPU_Top(instrs), Array("--target-dir", "gen"))
 }
