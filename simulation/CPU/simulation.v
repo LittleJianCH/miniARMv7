@@ -1,5 +1,5 @@
 `timescale 10ns/10ns
-`include "../../gen/CPU.v"
+`include "../../gen/CPU_Top.v"
 
 module simulation;
   reg CP, reset;
@@ -9,7 +9,7 @@ module simulation;
   wire [3:0] nzcv;
   wire done;
 
-  CPU cpu(CP, reset, writePC, writeIR, writeReg, A, B, C, F, IR, PC, nzcv, done);
+  CPU_Top cpu(CP, reset, writePC, writeIR, writeReg, A, B, C, F, IR, PC, nzcv, done);
 
   always #10 CP = !CP;
 
