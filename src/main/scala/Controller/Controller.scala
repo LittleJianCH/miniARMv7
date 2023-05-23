@@ -97,7 +97,6 @@ class Controller extends Module {
             io.writeR := !VecInit(Seq(
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
-            io.writePC := true.B
             io.writeN := I(20)
             io.writeZ := I(20)
             io.writeC := I(20)
@@ -118,7 +117,7 @@ class Controller extends Module {
            (!CM("1111", I(15, 12))),
       (I, state) => {
         switch(state) {
-          is(1.U) {
+          is (1.U) {
             io.rAddrA := I(19, 16)
             io.aluA := io.rDataA
             io.rAddrB := I(3, 0)
@@ -138,7 +137,6 @@ class Controller extends Module {
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
             io.writeR := true.B
-            io.writePC := true.B
             io.writeN := I(20)
             io.writeZ := I(20)
             io.writeC := I(20)
@@ -176,7 +174,6 @@ class Controller extends Module {
             io.writeR := !VecInit(Seq(
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
-            io.writePC := true.B
             io.writeN := I(20)
             io.writeZ := I(20)
             io.writeC := I(20)
@@ -208,12 +205,57 @@ class Controller extends Module {
           }
         }
       }
+    ),
+    ( // Branch
+      I => CM("1010", I(27, 24)),
+      (I, state) => {
+        switch (state) {
+          is (1.U) {
+            io.rAddrA := 15.U
+            io.aluA := io.rDataA
+            io.aluB := Cat(Fill(6, I(23)), I(23, 0), Fill(2, 0.U))
+            io.aluOp := "b0100".U
+
+            io.wAddr := 15.U
+            io.writeR := true.B
+
+            io.done := true.B
+          }
+        }
+      }
+    ),
+    ( // Branch with Link
+      I => CM("1011", I(27, 24)),
+      (I, state) => {
+        switch (state) {
+          is (1.U) {
+            io.rAddrA := 15.U
+            io.aluA := io.rDataA
+            io.aluOp := "b1000".U
+
+            io.wAddr := 14.U
+            io.writeR := true.B
+          }
+          is (2.U) {
+            io.rAddrA := 15.U
+            io.aluA := io.rDataA
+            io.aluB := Cat(Fill(6, I(23)), I(23, 0), Fill(2, 0.U))
+            io.aluOp := "b0100".U
+
+            io.wAddr := 15.U
+            io.writeR := true.B
+
+            io.done := true.B
+          }
+        }
+      }
     )
   )
 
   when (io.state === 0.U) {
     when (io.cond) {
       io.writeIR := true.B
+      io.writePC := true.B
     } .otherwise {
       io.done := true.B
       io.writePC := true.B

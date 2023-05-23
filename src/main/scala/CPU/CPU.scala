@@ -1,8 +1,6 @@
 package CPU
 
 import chisel3._
-import chisel3.util._
-import chisel3.experimental.ChiselEnum
 
 import Controller._
 import ALU._
@@ -37,10 +35,12 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   val fetchUnit = Module(new FetchUnit(instrs))
 
   val IR = withClock(negClock)(Reg(UInt(32.W)))
+  val PC = RegNext(registerFile.io.rPC, 0.U)
+  // 加入一个 PC 寄存器作为缓冲是为了我们能同时写入 PC 和 IR
   val CPSR = withClock(negClock)(RegInit(VecInit(Seq.fill(32)(0.B))))
 
   registerFile.io.wPC := fetchUnit.io.pcNext
-  fetchUnit.io.pc := registerFile.io.rPC
+  fetchUnit.io.pc := PC
 
   registerFile.io.wData := alu.io.out
   registerFile.io.mode := "b10000".U
@@ -97,7 +97,7 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   io.IR := IR
   io.PC := registerFile.io.rPC
   io.nzcv := CPSR.asUInt(31, 28)
-  io.done := ((fetchUnit.io.instr === 0.U) || controller.io.err)
+  io.done := (((fetchUnit.io.instr === 0.U) && (state === 0.U)) || controller.io.err)
   io.err := controller.io.err
   io.regs := registerFile.io.regs
 }
