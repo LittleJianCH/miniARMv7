@@ -4,17 +4,12 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.ChiselEnum
 
-import Decoder._
+import Controller._
 import ALU._
 import RegisterFile._
 import FetchUnit._
 
 class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
-  object State extends ChiselEnum {
-    val IF, ID, EX, WB = Value
-    // FetchUnit, Controller, ALU, RegisterFile & NZCV
-  }
-
   val io = IO (new Bundle{
     val writePC = Output(Bool())
     val writeIR = Output(Bool())
@@ -27,93 +22,75 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
     val PC = Output(UInt(8.W))
     val nzcv = Output(UInt(4.W))
     val done = Output(Bool())
-    val regs = Output(Vec(34, UInt(6.W)))
+    val regs = Output(Vec(34, UInt(32.W)))
   })
 
   val negClock = (~clock.asUInt).asBool.asClock
 
-  val decoder = Module(new Decoder)
+  val nextState = withClock(negClock)(Reg(UInt(4.W)))
+  val state = RegNext(nextState, 0.U)
+
+  val controller = Module(new Controller)
   val alu = Module(new ALU)
   val registerFile = Module(new RegisterFile)
   val fetchUnit = Module(new FetchUnit(instrs))
 
-  val nzcv = withClock(negClock)(RegInit(0.U(4.W)))
-  val IR = withClock(negClock)(RegInit(0.U(32.W)))
-  val nextState = withClock(negClock)(RegInit(State.IF))
-  val state = RegNext(nextState, State.IF)
-  val cond = withClock(negClock)(RegInit(false.B))
-  val doneReg = withClock(negClock)(RegInit(false.B))
-
-  alu.io.shift_num := decoder.io.aluShiftNum
-  alu.io.a := decoder.io.aluA
-  alu.io.b := decoder.io.aluB
-  alu.io.op := decoder.io.aluOp
-  alu.io.shift_num := decoder.io.aluShiftNum
-  alu.io.shift_op := decoder.io.aluShiftOp
-  decoder.io.aluOut := alu.io.out
-
-  registerFile.io.rAddrA := decoder.io.rAddrA
-  registerFile.io.rAddrB := decoder.io.rAddrB
-  registerFile.io.rAddrC := decoder.io.rAddrC
-  decoder.io.rDataA := registerFile.io.rDataA
-  decoder.io.rDataB := registerFile.io.rDataB
-  decoder.io.rDataC := registerFile.io.rDataC
-  registerFile.io.wData := decoder.io.wData
-  registerFile.io.wAddr := decoder.io.wAddr
-  registerFile.io.wReg := (cond && state === State.WB)
+  val IR = withClock(negClock)(Reg(UInt(32.W)))
+  val CPSR = withClock(negClock)(RegInit(VecInit(Seq.fill(32)(0.B))))
 
   registerFile.io.wPC := fetchUnit.io.pcNext
-  registerFile.io.wPCReg := (state === State.IF)
   fetchUnit.io.pc := registerFile.io.rPC
 
-  fetchUnit.io.nzcv := nzcv
-  alu.io.cin := nzcv(1)
+  registerFile.io.wData := alu.io.out
+  registerFile.io.mode := "b10000".U
 
-  registerFile.io.mode := "b10000".U // our cpu runs only in user mode now
+  fetchUnit.io.nzcv := CPSR.asUInt(31, 28)
 
-  decoder.io.IR := IR
-
-  when (!doneReg) {
-    switch(state) {
-      is(State.IF) {
-        cond := fetchUnit.io.cond
-        when(fetchUnit.io.cond) {
-          IR := fetchUnit.io.instr
-        }
-        nextState := State.ID
-      }
-
-      is(State.ID) {
-        doneReg := (IR === 0.U || doneReg)
-        nextState := State.EX
-      }
-
-      is(State.EX) {
-        nextState := State.WB
-      }
-
-      is(State.WB) {
-        when(cond && decoder.io.nzcvEN) {
-          nzcv := Cat(alu.io.nout, alu.io.zout, alu.io.cout, alu.io.vout)
-        }
-
-        nextState := State.IF
-      }
-    }
+  controller.io.state := state
+  controller.io.IR := IR
+  controller.io.cond := fetchUnit.io.cond
+  when (controller.io.writeIR) {
+    IR := fetchUnit.io.instr
   }
 
+  controller.io.rDataA := registerFile.io.rDataA
+  controller.io.rDataB := registerFile.io.rDataB
+  controller.io.rDataC := registerFile.io.rDataC
+  registerFile.io.rAddrA := controller.io.rAddrA
+  registerFile.io.rAddrB := controller.io.rAddrB
+  registerFile.io.rAddrC := controller.io.rAddrC
+  registerFile.io.wAddr := controller.io.wAddr
+  registerFile.io.wReg := controller.io.writeR
+  registerFile.io.wPCReg := controller.io.writePC
+
+  alu.io.a := controller.io.aluA
+  alu.io.b := controller.io.aluB
+  alu.io.cin := CPSR(29)
+  alu.io.op := controller.io.aluOp
+  alu.io.shift_op := controller.io.aluShiftOp
+  alu.io.shift_num := controller.io.aluShiftNum
+
+  when (controller.io.writeNZCV) {
+    CPSR(31) := alu.io.nout
+    CPSR(30) := alu.io.zout
+    CPSR(29) := alu.io.cout
+    CPSR(28) := alu.io.vout
+  }
+
+  nextState := Mux(controller.io.done, 0.U, state + 1.U)
+
   // Outputs
-  io.writePC := (state === State.IF)
-  io.writeIR := (state === State.IF && cond)
-  io.writeReg := (state === State.WB && cond)
-  io.A := decoder.io.aluA
-  io.B := decoder.io.aluB
+  io.writePC := controller.io.writePC
+  io.writeIR := controller.io.writeIR
+  io.writeReg := controller.io.writeR
+  io.A := controller.io.aluA
+  io.B := controller.io.aluB
   io.C := 0.U
-  io.F := decoder.io.aluOut
+  io.F := alu.io.out
   io.IR := IR
   io.PC := registerFile.io.rPC
-  io.nzcv := nzcv
-  io.done := doneReg
+  io.nzcv := CPSR.asUInt(31, 28)
+  io.done := (fetchUnit.io.instr === 0.U)
   io.regs := registerFile.io.regs
 }
 
