@@ -21,7 +21,7 @@ class FetchUnit(instrs: Seq[String] = Seq()) extends Module {
 
   val instrROM = VecInit((0 to 63).map(i =>
     if (i < instrs.length) {
-      ("b" ++ instrs(i)).U(32.W)
+      instrs(i).U(32.W)
     } else {
       0.U(32.W)
     }
