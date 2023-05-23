@@ -71,4 +71,22 @@ class CPUSpec extends AnyFreeSpec with ChiselScalatestTester {
       regs(1).expect(3.U)
     }
   }
+
+  "test cpu: Sum of Numbers from 1 to 10" in {
+    test(new CPU_Regs(Seq(
+      "he3a0100a", // MOV     r1, #10
+      "he3a00000", // MOV     r0, #0
+      "he0800001", // ADD     r0, r0, r1 @ loop
+      "he2511001", // SUBS    r1, r1, #1
+      "h1afffffd", // BNE     loop
+    ))) { p =>
+      while (!p.io.done.peekBoolean()) {
+        p.clock.step(1)
+      }
+
+      val regs = p.io.regs
+      regs(0).expect(55.U)
+      regs(1).expect(0.U)
+    }
+  }
 }

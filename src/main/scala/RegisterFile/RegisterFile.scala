@@ -3,6 +3,8 @@ package RegisterFile
 import chisel3._
 import chisel3.util._
 
+import ALU.Inc
+
 class AddressTransfer extends Module {
   val io = IO(new Bundle {
     val mode = Input(UInt(5.W))
@@ -25,7 +27,7 @@ class AddressTransfer extends Module {
   ))
 }
 
-class RegisterFile extends Module {
+class RegisterFile(realARM: Boolean = false) extends Module {
   val io = IO(new Bundle {
     val mode = Input(UInt(5.W))
     val rAddrA = Input(UInt(4.W))
@@ -76,9 +78,37 @@ class RegisterFile extends Module {
               (addrTransferC.io.out === 35.U) ||
               (addrTransferW.io.out === 35.U)
 
-  io.rDataA := regs(addrTransferA.io.out)
-  io.rDataB := regs(addrTransferB.io.out)
-  io.rDataC := regs(addrTransferC.io.out)
+  val addrA = addrTransferA.io.out
+  val addrB = addrTransferB.io.out
+  val addrC = addrTransferC.io.out
+
+  if (realARM) {
+    val incA = Module(new Inc(30))
+    val incB = Module(new Inc(30))
+    val incC = Module(new Inc(30))
+
+    incA.io.in := regs(addrA)(31, 2)
+    incB.io.in := regs(addrB)(31, 2)
+    incC.io.in := regs(addrC)(31, 2)
+
+    io.rDataA := Mux((addrA === 15.U),
+      Cat(incA.io.out, regs(addrA)(1, 0)),
+      regs(addrA)
+    )
+    io.rDataB := Mux(realARM.B && (addrB === 15.U),
+      Cat(incB.io.out, regs(addrB)(1, 0)),
+      regs(addrB)
+    )
+    io.rDataC := Mux(realARM.B && (addrC === 15.U),
+      Cat(incC.io.out, regs(addrC)(1, 0)),
+      regs(addrC)
+    )
+  } else {
+    io.rDataA := regs(addrA)
+    io.rDataB := regs(addrB)
+    io.rDataC := regs(addrC)
+  }
+
 
   when (io.wReg === 1.U) {
     regs(addrTransferW.io.out) := io.wData

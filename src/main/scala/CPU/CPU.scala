@@ -7,7 +7,11 @@ import ALU._
 import RegisterFile._
 import FetchUnit._
 
-class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
+class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Module {
+  // 按照 ARM 手册上的说法，在执行指令时 PC 的值应为当前指令地址 + 8 而非 + 4
+  // 这与实验指导书上的描述不一致（应为实验指导书为了简化实现而做出的修改）
+  // 所以加入 realARM 参数来控制是否使用 ARM 手册上的 PC 计算方式
+  // 具体操作为在寄存器堆读取 R15 时值时，若 realARM 为真则将其值加 4
   val io = IO (new Bundle{
     val writePC = Output(Bool())
     val writeIR = Output(Bool())
@@ -31,7 +35,7 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
 
   val controller = Module(new Controller)
   val alu = Module(new ALU)
-  val registerFile = Module(new RegisterFile)
+  val registerFile = Module(new RegisterFile(realARM))
   val fetchUnit = Module(new FetchUnit(instrs))
 
   val IR = withClock(negClock)(Reg(UInt(32.W)))
@@ -102,7 +106,7 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   io.regs := registerFile.io.regs
 }
 
-class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
+class CPU_Top(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Module {
   // Almost same as CPU_Regs, but without registers exposed
   val io = IO(new Bundle {
     val writePC = Output(Bool())
@@ -119,7 +123,7 @@ class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
     val err = Output(Bool())
   })
 
-  val cpu = Module(new CPU_Regs(instrs))
+  val cpu = Module(new CPU_Regs(instrs, realARM))
 
   io.writePC := cpu.io.writePC
   io.writeIR := cpu.io.writeIR
@@ -137,11 +141,11 @@ class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "b11100011101100000000000000001000", //r0<-8
-    "b11100011101100000001000100001100", //r1<-(12 >> 1)
-    "b11100010010100010001000000000001", //SUBS r1 #1 -> r1
-    "b11100011001100010000000000000011", //TEQ r1 #3
-    "b00010001001011111111111100010000", //if !Z, BX r0
+    "he3a01064", // MOV     r1, #100
+    "he3a00000", // MOV     r0, #0
+    "he0800001", // ADD     r0, r0, r1 @ loop
+    "he2511001", // SUBS    r1, r1, #1
+    "h1afffffc", // BNE     loop
   )
-  chisel3.emitVerilog(new CPU_Top(instrs), Array("--target-dir", "gen"))
+  chisel3.emitVerilog(new CPU_Top(instrs, realARM = true), Array("--target-dir", "gen"))
 }
