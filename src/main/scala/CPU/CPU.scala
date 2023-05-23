@@ -22,6 +22,7 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
     val PC = Output(UInt(8.W))
     val nzcv = Output(UInt(4.W))
     val done = Output(Bool())
+    val err = Output(Bool())
     val regs = Output(Vec(34, UInt(32.W)))
   })
 
@@ -90,7 +91,8 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   io.IR := IR
   io.PC := registerFile.io.rPC
   io.nzcv := CPSR.asUInt(31, 28)
-  io.done := (fetchUnit.io.instr === 0.U)
+  io.done := ((fetchUnit.io.instr === 0.U) || controller.io.err)
+  io.err := controller.io.err
   io.regs := registerFile.io.regs
 }
 
@@ -108,6 +110,7 @@ class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
     val PC = Output(UInt(8.W))
     val nzcv = Output(UInt(4.W))
     val done = Output(Bool())
+    val err = Output(Bool())
   })
 
   val cpu = Module(new CPU_Regs(instrs))
@@ -123,6 +126,7 @@ class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
   io.PC := cpu.io.PC
   io.nzcv := cpu.io.nzcv
   io.done := cpu.io.done
+  io.err := cpu.io.err
 }
 
 object CPU_Gen extends App {

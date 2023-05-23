@@ -7,9 +7,9 @@ module simulation;
   wire [31:0] A, B, C, F, IR;
   wire [7:0] PC;
   wire [3:0] nzcv;
-  wire done;
+  wire done, err;
 
-  CPU_Top cpu(CP, reset, writePC, writeIR, writeReg, A, B, C, F, IR, PC, nzcv, done);
+  CPU_Top cpu(CP, reset, writePC, writeIR, writeReg, A, B, C, F, IR, PC, nzcv, done, err);
 
   always #10 CP = !CP;
 
@@ -19,6 +19,6 @@ module simulation;
 
     CP = 0; reset = 1; #30 reset = 0;
 
-    #30000 $finish;
+    #300 $finish;
   end
 endmodule

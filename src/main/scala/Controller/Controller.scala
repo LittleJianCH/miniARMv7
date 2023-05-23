@@ -68,7 +68,8 @@ class Controller extends Module {
     ( // Data-processing (register)
       I => CM("000", I(27, 25)) &&
            (!CM("10xx0", I(24, 20))) &&
-           CM("xxx0", I(7, 4)),
+           CM("xxx0", I(7, 4)) &&
+           (!CM("1111", I(15, 12))),
       (I, state) => {
         switch (state) {
           is (1.U) {
@@ -92,7 +93,8 @@ class Controller extends Module {
     ( // Data-processing (register-shifted register)
       I => CM("000", I(27, 25)) &&
            (!CM("10xx0", I(24, 20))) &&
-           CM("0xx1", I(7, 4)),
+           CM("0xx1", I(7, 4)) &&
+           (!CM("1111", I(15, 12))),
       (I, state) => {
         switch(state) {
           is(1.U) {
@@ -115,7 +117,8 @@ class Controller extends Module {
     ),
     ( // Data-processing (immediate)
       I => CM("001", I(27, 25)) &&
-           (!CM("10xx0", I(24, 20))),
+           (!CM("10xx0", I(24, 20))) &&
+           (!CM("1111", I(15, 12))),
       (I, state) => {
         switch (state) {
           is (1.U) {
@@ -144,10 +147,17 @@ class Controller extends Module {
       io.done := true.B
     }
   } .otherwise {
+    val matched = Wire(Bool())
+    matched := false.B
     for ((check, handle) <- instr_map) {
       when (check(io.IR)) {
         handle(io.IR, io.state)
+        matched := true.B
       }
+    }
+
+    when (!matched) {
+      io.err := true.B
     }
   }
 }
