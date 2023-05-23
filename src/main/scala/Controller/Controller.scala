@@ -34,7 +34,10 @@ class Controller extends Module {
     val aluShiftNum = Output(UInt(8.W))
 
     // For NZCV
-    val writeNZCV = Output(Bool())
+    val writeN = Output(Bool())
+    val writeZ = Output(Bool())
+    val writeC = Output(Bool())
+    val writeV = Output(Bool())
 
     val err = Output(Bool())
   })
@@ -52,7 +55,10 @@ class Controller extends Module {
   io.aluOp := 0.U
   io.aluShiftOp := 0.U
   io.aluShiftNum := 0.U
-  io.writeNZCV := false.B
+  io.writeN := false.B
+  io.writeZ := false.B
+  io.writeC := false.B
+  io.writeV := false.B
   io.err := false.B
 
   def CM(str: String, I: UInt): Bool = {
@@ -75,15 +81,30 @@ class Controller extends Module {
           is (1.U) {
             io.rAddrA := I(19, 16)
             io.aluA := io.rDataA
-            io.aluOp := I(24, 21)
             io.rAddrB := I(3, 0)
             io.aluB := io.rDataB
             io.aluShiftOp := I(6, 4)
             io.aluShiftNum := I(11, 7)
 
+            io.aluOp := MuxLookup(I(24, 21), I(24, 21), Seq(
+              "b1000".U -> "b0000".U, // TST
+              "b1001".U -> "b0001".U, // TEQ
+              "b1010".U -> "b0010".U, // CMP
+              "b1011".U -> "b0011".U, // CMN
+            ))
+
             io.wAddr := I(15, 12)
-            io.writeR := true.B
+            io.writeR := !VecInit(Seq(
+              "b1000", "b1001", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
             io.writePC := true.B
+            io.writeN := I(20)
+            io.writeZ := I(20)
+            io.writeC := I(20)
+            io.writeV := I(20) && VecInit(Seq(
+              "b0010", "b0011", "b0100", "b0101",
+              "b0110", "b0111", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
 
             io.done := true.B
           }
@@ -100,15 +121,31 @@ class Controller extends Module {
           is(1.U) {
             io.rAddrA := I(19, 16)
             io.aluA := io.rDataA
-            io.aluOp := I(24, 21)
             io.rAddrB := I(3, 0)
             io.aluB := io.rDataB
             io.aluShiftOp := I(6, 4)
             io.aluShiftNum := I(11, 8)
 
+            io.aluOp := MuxLookup(I(24, 21), I(24, 21), Seq(
+              "b1000".U -> "b0000".U, // TST
+              "b1001".U -> "b0001".U, // TEQ
+              "b1010".U -> "b0010".U, // CMP
+              "b1011".U -> "b0011".U, // CMN
+            ))
+
             io.wAddr := I(15, 12)
+            io.writeR := !VecInit(Seq(
+              "b1000", "b1001", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
             io.writeR := true.B
             io.writePC := true.B
+            io.writeN := I(20)
+            io.writeZ := I(20)
+            io.writeC := I(20)
+            io.writeV := I(20) && VecInit(Seq(
+              "b0010", "b0011", "b0100", "b0101",
+              "b0110", "b0111", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
 
             io.done := true.B
           }
@@ -124,14 +161,48 @@ class Controller extends Module {
           is (1.U) {
             io.rAddrA := I(19, 16)
             io.aluA := io.rDataA
-            io.aluOp := I(24, 21)
             io.aluB := I(7, 0)
             io.aluShiftOp := "b111".U
             io.aluShiftNum := I(11, 8)
 
+            io.aluOp := MuxLookup(I(24, 21), I(24, 21), Seq(
+              "b1000".U -> "b0000".U, // TST
+              "b1001".U -> "b0001".U, // TEQ
+              "b1010".U -> "b0010".U, // CMP
+              "b1011".U -> "b0011".U, // CMN
+            ))
+
             io.wAddr := I(15, 12)
-            io.writeR := true.B
+            io.writeR := !VecInit(Seq(
+              "b1000", "b1001", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
             io.writePC := true.B
+            io.writeN := I(20)
+            io.writeZ := I(20)
+            io.writeC := I(20)
+            io.writeV := I(20) && VecInit(Seq(
+              "b0010", "b0011", "b0100", "b0101",
+              "b0110", "b0111", "b1010", "b1011"
+            ).map(_.U)).contains(I(24, 21))
+
+            io.done := true.B
+          }
+        }
+      }
+    ),
+    ( // Branch and Exchange
+      I => CM("00010010", I(27, 20)) &&
+           CM("11111111111", I(19, 8)) &&
+           CM("0001", I(7, 4)),
+      (I, state) => {
+        switch (state) {
+          is (1.U) {
+            io.rAddrA := I(3, 0)
+            io.aluA := io.rDataA
+            io.aluOp := "b1000".U
+
+            io.wAddr := 15.U
+            io.writeR := true.B
 
             io.done := true.B
           }
@@ -145,6 +216,7 @@ class Controller extends Module {
       io.writeIR := true.B
     } .otherwise {
       io.done := true.B
+      io.writePC := true.B
     }
   } .otherwise {
     val matched = Wire(Bool())

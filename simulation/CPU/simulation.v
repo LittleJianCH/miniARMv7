@@ -19,6 +19,6 @@ module simulation;
 
     CP = 0; reset = 1; #30 reset = 0;
 
-    #300 $finish;
+    #3000 $finish;
   end
 endmodule

@@ -71,10 +71,16 @@ class CPU_Regs(instrs: Seq[String] = Seq()) extends Module {
   alu.io.shift_op := controller.io.aluShiftOp
   alu.io.shift_num := controller.io.aluShiftNum
 
-  when (controller.io.writeNZCV) {
+  when (controller.io.writeN) {
     CPSR(31) := alu.io.nout
+  }
+  when (controller.io.writeZ) {
     CPSR(30) := alu.io.zout
+  }
+  when (controller.io.writeC) {
     CPSR(29) := alu.io.cout
+  }
+  when (controller.io.writeV) {
     CPSR(28) := alu.io.vout
   }
 
@@ -131,9 +137,11 @@ class CPU_Top(instrs: Seq[String] = Seq()) extends Module {
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "11110011101100000000000000000011", //r0<-3
-    "11110011101100000001000100000100", //r1<-(4 >> 1)
-    "11110010010100000000000000000011", //SUBS r0 #3
+    "11100011101100000000000000001000", //r0<-8
+    "11100011101100000001000100001100", //r1<-(12 >> 1)
+    "11100010010100010001000000000001", //SUBS r1 #1 -> r1
+    "11100011001100010000000000000011", //TEQ r1 #3
+    "00010001001011111111111100010000", //if !Z, BX r0
   )
   chisel3.emitVerilog(new CPU_Top(instrs), Array("--target-dir", "gen"))
 }
