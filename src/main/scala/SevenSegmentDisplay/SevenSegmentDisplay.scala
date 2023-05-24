@@ -31,7 +31,7 @@ class SegmentDriver extends Module {
   io.seg := segMap(io.digit)
 }
 
-class SevenSegmentDisplay(digit: Int) extends Module {
+class SevenSegmentDisplay(digit: Int, div: Int = 1) extends Module {
   val io = IO(new Bundle {
     val digits = Input(Vec(digit, UInt(4.W)))
     val seg = Output(UInt(8.W))
@@ -39,10 +39,15 @@ class SevenSegmentDisplay(digit: Int) extends Module {
     val en = Output(Bool())
   })
 
+  val cntDiv = RegInit(0.U(log2Ceil(div).W))
   val counter = RegInit(0.U(log2Ceil(digit).W))
   val driver = Module(new SegmentDriver)
 
-  counter := (counter + 1.U) % digit.U
+  cntDiv := (cntDiv + 1.U) % div.U
+
+  when (cntDiv === 0.U) {
+    counter := (counter + 1.U) % digit.U
+  }
 
   driver.io.digit := io.digits(counter)
   io.seg := driver.io.seg
