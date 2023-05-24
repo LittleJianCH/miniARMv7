@@ -33,7 +33,7 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   val nextState = withClock(negClock)(Reg(UInt(4.W)))
   val state = RegNext(nextState, 0.U)
 
-  val controller = Module(new Controller)
+  val controller = Module(new Controller(realARM))
   val alu = Module(new ALU)
   val registerFile = Module(new RegisterFile(realARM))
   val fetchUnit = Module(new FetchUnit(instrs))
@@ -141,11 +141,17 @@ class CPU_Top(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mod
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "he3a01064", // MOV     r1, #100
-    "he3a00000", // MOV     r0, #0
-    "he0800001", // ADD     r0, r0, r1 @ loop
-    "he2511001", // SUBS    r1, r1, #1
+    "he3a0100a", // MOV     r1, #10
+    "heb000001", // BL      pow2
+    "he1a02001", // MOV     r2, r1
+    "hea000005", // B       end
+    "he1a00001", // MOV     r0, r1 @ pow2
+    "he3a01001", // MOV     r1, #1
+    "he0811001", // ADD     r1, r1, r1 @ loop
+    "he2500001", // SUBS    r0, r0, #1
     "h1afffffc", // BNE     loop
+    "he12fff1e", // BX      lr
+    // @ end
   )
   chisel3.emitVerilog(new CPU_Top(instrs, realARM = true), Array("--target-dir", "gen"))
 }

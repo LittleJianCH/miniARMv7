@@ -3,7 +3,7 @@ package Controller
 import chisel3._
 import chisel3.util._
 
-class Controller extends Module {
+class Controller(realARM: Boolean = false) extends Module {
   // Controller 负责处理所有与 IR, state 具体值相关的信号
   val io = IO(new Bundle {
     // state
@@ -231,7 +231,14 @@ class Controller extends Module {
           is (1.U) {
             io.rAddrA := 15.U
             io.aluA := io.rDataA
-            io.aluOp := "b1000".U
+
+            if (!realARM) {
+              io.aluOp := "b1000".U
+            } else {
+              // 由于模拟了 PC + 2 的行为，在 BL 时存入的值应为 (PC + 2) - 1
+              io.aluOp := "b0010".U
+              io.aluB := 1.U
+            }
 
             io.wAddr := 14.U
             io.writeR := true.B

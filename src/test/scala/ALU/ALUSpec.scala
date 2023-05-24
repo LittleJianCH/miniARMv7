@@ -50,4 +50,17 @@ class ALUSpec extends AnyFreeSpec with ChiselScalatestTester {
       }
     }
   }
+
+  "test alu example" in {
+    test(new ALU) { p =>
+      p.io.a.poke(32.U)
+      p.io.b.poke(32.U)
+      p.io.op.poke("b0100".U)
+      p.io.cin.poke(0.U)
+      p.io.shift_op.poke("b000".U)
+      p.io.shift_num.poke(0.U)
+
+      p.io.out.expect(64.U)
+    }
+  }
 }

@@ -44,7 +44,7 @@ class RegisterFile(realARM: Boolean = false) extends Module {
     val rDataC = Output(UInt(32.W))
     val rPC = Output(UInt(32.W))
 
-    val regs = Output(Vec(34, UInt(6.W)))
+    val regs = Output(Vec(34, UInt(32.W)))
   })
 
   // we will write to the register file on the falling edge of the clock
@@ -91,7 +91,7 @@ class RegisterFile(realARM: Boolean = false) extends Module {
     incB.io.in := regs(addrB)(31, 2)
     incC.io.in := regs(addrC)(31, 2)
 
-    io.rDataA := Mux((addrA === 15.U),
+    io.rDataA := Mux(addrA === 15.U,
       Cat(incA.io.out, regs(addrA)(1, 0)),
       regs(addrA)
     )
