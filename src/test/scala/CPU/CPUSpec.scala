@@ -115,4 +115,30 @@ class CPUSpec extends AnyFreeSpec with ChiselScalatestTester {
       regs(2).expect(1024.U)
     }
   }
+
+  "test cpu SMLAWT" in {
+    test(new CPU_Regs(Seq(
+      "he3a00012", // mov r0, #18
+      "he1a00400", // mov r0, r0, LSL #8
+      "he28000d6", // add r0, #214
+      "he1a00400", // mov r0, r0, LSL #8
+      "he2800087", // add r0, #135
+      "he3a01001", // mov r1, #1
+      "he1a01401", // mov r1, r1, LSL #8
+      "he28110e2", // add r1, #226
+      "he1a01401", // mov r1, r1, LSL #8
+      "he2811040", // add r1, #64
+      "he3a02004", // mov r2, #4
+      "he1a02402", // mov r2, r2, LSL #8
+      "he28220d2", // add r2, #210
+      "he12021c0", // SMLAWT r0, r0, r1, r2
+    ), realARM = true)) { p =>
+      while (!p.io.done.peekBoolean()) {
+        p.clock.step()
+      }
+
+      val regs = p.io.regs
+      regs(0).expect(1252.U)
+    }
+  }
 }

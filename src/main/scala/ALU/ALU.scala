@@ -42,12 +42,7 @@ class Negator(width: Int) extends Module {
   io.out := inc.io.out
 }
 
-class ALU_Core extends Module {
-  // In terms of implementation, we have divided ALU into two layers.
-  // The inner layer is the basic arithmetic module,
-  // and the outer layer is a combination of arithmetic modules and barrel shifters.
-  // The inner layer should look like a wrapper of Adder.
-
+class AddUnit extends Module {
   val io = IO(new Bundle {
     val a = Input(UInt(32.W))
     val b = Input(UInt(32.W))
@@ -93,10 +88,39 @@ class ALU_Core extends Module {
   io.cout := r33(32) ^ io.op(1)
 }
 
+class MulUnit extends Module {
+  val io = IO(new Bundle {
+    val a = Input(UInt(16.W))
+    val b = Input(UInt(16.W))
+    val signed = Input(Bool())
+    val out = Output(UInt(32.W))
+  })
+
+  val multiplier = Module(new Multiplier(16))
+  val negatorA = Module(new Negator(16))
+  val negatorB = Module(new Negator(16))
+  val negatorF = Module(new Negator(32))
+
+  negatorA.io.in := io.a
+  negatorB.io.in := io.b
+  negatorF.io.in := multiplier.io.out
+
+  multiplier.io.a := Mux(io.signed && io.a(15), negatorA.io.out, io.a)
+  multiplier.io.b := Mux(io.signed && io.b(15), negatorB.io.out, io.b)
+
+  io.out := Mux(io.signed && (io.a(15) ^ io.b(15)),
+    negatorF.io.out,
+    multiplier.io.out
+  )
+}
+
 class ALU extends Module {
   val io = IO(new Bundle {
     val a = Input(UInt(32.W))
     val b = Input(UInt(32.W))
+    val c = Input(UInt(16.W))
+    val mul_op = Input(UInt(2.W))
+    // bit0: if use mul unit, bit1: if signed
     val op = Input(UInt(4.W))
     val cin = Input(UInt(1.W))
     val shift_op = Input(UInt(3.W))
@@ -108,7 +132,8 @@ class ALU extends Module {
     val vout = Output(UInt(1.W))
   })
 
-  val alu_core = Module(new ALU_Core)
+  val add_unit = Module(new AddUnit)
+  val mul_unit = Module(new MulUnit)
   val barrel_shifter = Module(new BarrelShifter)
 
   barrel_shifter.io.Shift_OP := io.shift_op
@@ -116,13 +141,17 @@ class ALU extends Module {
   barrel_shifter.io.Shift_Data := io.b
   barrel_shifter.io.Carry_Flag := io.cin
 
-  alu_core.io.op := io.op
-  alu_core.io.a := io.a
-  alu_core.io.b := barrel_shifter.io.Shift_Out
-  alu_core.io.cin := io.cin
+  mul_unit.io.a := io.a(15, 0)
+  mul_unit.io.b := io.c
+  mul_unit.io.signed := io.op(1)
+
+  add_unit.io.op := io.op
+  add_unit.io.a := Mux(io.mul_op(0), mul_unit.io.out, io.a)
+  add_unit.io.b := barrel_shifter.io.Shift_Out
+  add_unit.io.cin := io.cin
 
   val realB = barrel_shifter.io.Shift_Out
-  io.out := MuxLookup(io.op, alu_core.io.out, Array(
+  io.out := MuxLookup(io.op, add_unit.io.out, Array(
     "b0000".U -> (io.a & realB),
     "b0001".U -> (io.a ^ realB),
     "b1100".U -> (io.a | realB),
@@ -132,14 +161,14 @@ class ALU extends Module {
 
   io.nout := io.out(31)
   io.zout := !io.out.orR
-  io.cout := MuxLookup(io.op, alu_core.io.cout, Array(
+  io.cout := MuxLookup(io.op, add_unit.io.cout, Array(
     "b0000".U -> barrel_shifter.io.Shift_Carry_Out,
     "b0001".U -> barrel_shifter.io.Shift_Carry_Out,
     "b1100".U -> barrel_shifter.io.Shift_Carry_Out,
     "b1110".U -> barrel_shifter.io.Shift_Carry_Out,
     "b1111".U -> barrel_shifter.io.Shift_Carry_Out,
   ))
-  io.vout := alu_core.io.a(31) ^ alu_core.io.b(31) ^ io.out(31) ^ io.cout
+  io.vout := add_unit.io.a(31) ^ add_unit.io.b(31) ^ io.out(31) ^ io.cout
 }
 
 object ALU_Gen extends App {

@@ -42,6 +42,15 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   val PC = RegNext(registerFile.io.rPC, 0.U)
   // 加入一个 PC 寄存器作为缓冲是为了我们能同时写入 PC 和 IR
   val CPSR = withClock(negClock)(RegInit(VecInit(Seq.fill(32)(0.B))))
+  val regs = withClock(negClock)(RegInit(VecInit(Seq.fill(4)(0.U(32.W)))))
+  // 用于在微程序中记录数据的寄存器
+
+  controller.io.regsR := regs
+  for (i <- 0 until 4) {
+    when (controller.io.regsWE(i)) {
+      regs(i) := controller.io.regsW(i)
+    }
+  }
 
   registerFile.io.wPC := fetchUnit.io.pcNext
   fetchUnit.io.pc := PC
@@ -70,10 +79,14 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
 
   alu.io.a := controller.io.aluA
   alu.io.b := controller.io.aluB
+  alu.io.c := controller.io.aluC
   alu.io.cin := CPSR(29)
   alu.io.op := controller.io.aluOp
+  alu.io.mul_op := controller.io.aluMulOp
   alu.io.shift_op := controller.io.aluShiftOp
   alu.io.shift_num := controller.io.aluShiftNum
+  controller.io.aluOut := alu.io.out
+  controller.io.aluCout := alu.io.cout
 
   when (controller.io.writeN) {
     CPSR(31) := alu.io.nout
@@ -141,17 +154,20 @@ class CPU_Top(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mod
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "he3a0100a", // MOV     r1, #10
-    "heb000001", // BL      pow2
-    "he1a02001", // MOV     r2, r1
-    "hea000005", // B       end
-    "he1a00001", // MOV     r0, r1 @ pow2
-    "he3a01001", // MOV     r1, #1
-    "he0811001", // ADD     r1, r1, r1 @ loop
-    "he2500001", // SUBS    r0, r0, #1
-    "h1afffffc", // BNE     loop
-    "he12fff1e", // BX      lr
-    // @ end
+    "he3a00012",
+    "he1a00400",
+    "he28000d6",
+    "he1a00400",
+    "he2800087",
+    "he3a01001",
+    "he1a01401",
+    "he28110e2",
+    "he1a01401",
+    "he2811040",
+    "he3a02004",
+    "he1a02402",
+    "he28220d2",
+    "he12021c0",
   )
   chisel3.emitVerilog(new CPU_Top(instrs, realARM = true), Array("--target-dir", "gen"))
 }

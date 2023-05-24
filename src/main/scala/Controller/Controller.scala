@@ -29,15 +29,24 @@ class Controller(realARM: Boolean = false) extends Module {
     // For ALU
     val aluA = Output(UInt(32.W))
     val aluB = Output(UInt(32.W))
+    val aluC = Output(UInt(32.W))
+    val aluMulOp = Output(UInt(2.W))
     val aluOp = Output(UInt(4.W))
     val aluShiftOp = Output(UInt(3.W))
     val aluShiftNum = Output(UInt(8.W))
+    val aluOut = Input(UInt(32.W))
+    val aluCout = Input(Bool())
 
     // For NZCV
     val writeN = Output(Bool())
     val writeZ = Output(Bool())
     val writeC = Output(Bool())
     val writeV = Output(Bool())
+
+    // For regs
+    val regsR = Input(Vec(4, UInt(32.W)))
+    val regsW = Output(Vec(4, UInt(32.W)))
+    val regsWE = Output(Vec(4, Bool()))
 
     val err = Output(Bool())
   })
@@ -52,6 +61,8 @@ class Controller(realARM: Boolean = false) extends Module {
   io.writePC := false.B
   io.aluA := 0.U
   io.aluB := 0.U
+  io.aluC := 0.U
+  io.aluMulOp := 0.U
   io.aluOp := 0.U
   io.aluShiftOp := 0.U
   io.aluShiftNum := 0.U
@@ -60,6 +71,8 @@ class Controller(realARM: Boolean = false) extends Module {
   io.writeC := false.B
   io.writeV := false.B
   io.err := false.B
+  io.regsW := VecInit(Seq.fill(4)(0.U))
+  io.regsWE := VecInit(Seq.fill(4)(false.B))
 
   def CM(str: String, I: UInt): Bool = {
     // 判断 I 是否符合 str 模式串（x 为通配符）
@@ -253,6 +266,115 @@ class Controller(realARM: Boolean = false) extends Module {
             io.writeR := true.B
 
             io.done := true.B
+          }
+        }
+      }
+    ),
+    ( // Halfword multiply and multiply accumulate
+      I => CM("00010xx0", I(27, 20)) &&
+           CM("1xx0", I(7, 4)),
+      (I, state) => {
+        when (I(22, 21) === 0.U || I(22, 21) === 3.U) {
+          // Signed 16-bit multiply, 32-bit accumulate & Signed 16-bit multiply, 32-bit result
+          switch (state) {
+            is (1.U) {
+              io.rAddrA := I(11, 8)
+              io.rAddrB := I(15, 12)
+              io.rAddrC := I(3, 0)
+
+              io.aluA := Mux(I(6), io.rDataA(31, 16), io.rDataA(15, 0))
+              io.aluB := Mux(I(22, 21) === 0.U, io.rDataB, 0.U)
+              io.aluC := Mux(I(5), io.rDataC(31, 16), io.rDataC(15, 0))
+              io.aluOp := "b0100".U
+              io.aluMulOp := "b11".U
+
+              io.wAddr := I(19, 16)
+              io.writeR := true.B
+
+              io.done := true.B
+            }
+          }
+        } .elsewhen (I(22, 21) === 1.U) {
+          // Signed 16-bit × 32-bit multiply, 32-bit accumulate &&
+          // Signed 16-bit × 32-bit multiply, 32-bit result
+          switch (state) {
+            is (1.U) {
+              io.rAddrA := I(11, 8)
+              io.rAddrC := I(3, 0)
+
+              io.aluA := Mux(I(6), io.rDataA(31, 16), io.rDataA(15, 0))
+              io.aluC := io.rDataC(15, 0)
+              io.aluOp := "b1000".U
+              io.aluMulOp := "b01".U
+
+              io.regsW(0) := io.aluOut
+              io.regsWE(0) := true.B
+              io.regsW(1) := io.rDataC(31)
+              io.regsWE(1) := true.B
+            }
+            is (2.U) {
+              io.rAddrA := I(11, 8)
+              io.rAddrC := I(3, 0)
+
+              io.aluA := Mux(I(6), io.rDataA(31, 16), io.rDataA(15, 0))
+              io.aluB := io.regsR(0)
+              io.aluC := io.rDataC(31, 16)
+              io.aluOp := Mux(io.regsR(1) === 1.U, "b0010".U, "b0100".U)
+              io.aluMulOp := "b11".U
+              io.aluShiftOp := "b010".U
+              io.aluShiftNum := 16.U
+
+              when (I(5)) {
+                io.wAddr := I(19, 16)
+                io.writeR := true.B
+                io.done := true.B
+              } .otherwise {
+                io.regsW(0) := io.aluOut
+                io.regsWE(0) := true.B
+              }
+            }
+            is (3.U) {
+              io.rAddrA := I(15, 12)
+
+              io.aluA := io.rDataA
+              io.aluB := io.regsR(0)
+              io.aluOp := "b0100".U
+
+              io.wAddr := I(19, 16)
+              io.writeR := true.B
+
+              io.done := true.B
+            }
+          }
+        } .elsewhen (I(22, 21) === 2.U) {
+          // Signed 16-bit multiply, 64-bit accumulate
+          switch (state) {
+            is (1.U) {
+              io.rAddrA := I(11, 8)
+              io.rAddrB := I(15, 12)
+              io.rAddrC := I(3, 0)
+
+              io.aluA := Mux(I(6), io.rDataA(31, 16), io.rDataA(15, 0))
+              io.aluB := io.rDataB
+              io.aluC := Mux(I(5), io.rDataC(31, 16), io.rDataC(15, 0))
+              io.aluOp := "b0100".U
+              io.aluMulOp := "b11".U
+
+              io.regsW(0) := io.aluOut
+              io.regsWE(0) := true.B
+              io.regsW(1) := io.aluCout
+              io.regsWE(1) := true.B
+            }
+            is (2.U) {
+              io.aluA := io.regsR(0)
+              io.aluB := io.regsR(1)
+              io.aluOp := "b0100".U
+
+              io.wAddr := I(19, 16)
+              io.writeR := true.B
+
+              io.done := true.B
+            }
           }
         }
       }

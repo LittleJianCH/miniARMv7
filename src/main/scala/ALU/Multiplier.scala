@@ -3,6 +3,8 @@ package ALU
 import chisel3._
 import scalaz._
 
+import ALU.Negator
+
 class Multiplier(width: Int) extends Module {
   val io = IO(new Bundle {
     val a = Input(UInt(width.W))
