@@ -116,15 +116,15 @@ class CPUSpec extends AnyFreeSpec with ChiselScalatestTester {
     }
   }
 
-  "test cpu SMLAWT" in {
+  "test cpu Halfword multiply" in {
     test(new CPU_Regs(Seq(
-      "he3a00012", // mov r0, #18
-      "he1a00400", // mov r0, r0, LSL #8
+      "he3a00008", // mov r0, #18
+      "he1a00500", // mov r0, r0, LSL #10
       "he28000d6", // add r0, #214
       "he1a00400", // mov r0, r0, LSL #8
       "he2800087", // add r0, #135
-      "he3a01001", // mov r1, #1
-      "he1a01401", // mov r1, r1, LSL #8
+      "he3a01063", // mov r1, #99
+      "he1a01481", // mov r1, r1, LSL #9
       "he28110e2", // add r1, #226
       "he1a01401", // mov r1, r1, LSL #8
       "he2811040", // add r1, #64
@@ -132,13 +132,21 @@ class CPUSpec extends AnyFreeSpec with ChiselScalatestTester {
       "he1a02402", // mov r2, r2, LSL #8
       "he28220d2", // add r2, #210
       "he12021c0", // SMLAWT r0, r0, r1, r2
+      "he3a03017", // mov r3, #23
+      "he3a04019", // mov r4, #25
+      "he1630483", // SMULBB r3, r3, r4
+      "he1410382", // SMLALBB r0, r1, r2, r3
     ), realARM = true)) { p =>
       while (!p.io.done.peekBoolean()) {
         p.clock.step()
       }
 
       val regs = p.io.regs
-      regs(0).expect(1252.U)
+      regs(0).expect("haf1e5".U)
+      regs(1).expect("hc6e240".U)
+      regs(2).expect("h4d2".U)
+      regs(3).expect("h23f".U)
+      regs(4).expect("h19".U)
     }
   }
 }

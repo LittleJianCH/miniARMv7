@@ -366,11 +366,20 @@ class Controller(realARM: Boolean = false) extends Module {
               io.regsWE(1) := true.B
             }
             is (2.U) {
-              io.aluA := io.regsR(0)
+              io.rAddrA := I(19, 16)
+
+              io.aluA := io.rDataA
               io.aluB := io.regsR(1)
               io.aluOp := "b0100".U
 
               io.wAddr := I(19, 16)
+              io.writeR := true.B
+            }
+            is (3.U) {
+              io.aluA := io.regsR(0)
+              io.aluOp := "b1000".U
+
+              io.wAddr := I(15, 12)
               io.writeR := true.B
 
               io.done := true.B
