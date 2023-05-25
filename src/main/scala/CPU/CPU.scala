@@ -101,7 +101,9 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
     CPSR(28) := alu.io.vout
   }
 
-  nextState := Mux(controller.io.done, 0.U, state + 1.U)
+  val inc = Module(new Inc(4))
+  inc.io.in := state
+  nextState := Mux(controller.io.done, 0.U, inc.io.out)
 
   // Outputs
   io.writePC := controller.io.writePC
