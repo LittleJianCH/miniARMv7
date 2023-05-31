@@ -66,11 +66,21 @@ class Board(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Modul
 
 object Board_Gen extends App {
   val instrs = Seq(
-    "he3a01064", // MOV     r1, #100
-    "he3a00000", // MOV     r0, #0
-    "he0800001", // ADD     r0, r0, r1 @ loop
-    "he2511001", // SUBS    r1, r1, #1
-    "h1afffffc", // BNE     loop
+    "he24dd010",
+    "he3a00000",
+    "he58d000c",
+    "he59f1020",
+    "he58d1008",
+    "he59f101c",
+    "he58d1004",
+    "he59d1008",
+    "he59d2004",
+    "he0811002",
+    "he58d1000",
+    "he28dd010",
+    "h00000000",
+    "h0012d687",
+    "h0074cbb1",
   )
   chisel3.emitVerilog(new Board(instrs, realARM = true), Array("--target-dir", "gen"))
 }

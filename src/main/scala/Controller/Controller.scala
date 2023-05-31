@@ -3,6 +3,15 @@ package Controller
 import chisel3._
 import chisel3.util._
 
+class Cond extends Module {
+  val io = IO(new Bundle {
+    val IR = Input(UInt(32.W))
+    val cond = Output(Bool())
+  })
+
+
+}
+
 class Controller(realARM: Boolean = false) extends Module {
   // Controller 负责处理所有与 IR, state 具体值相关的信号
   val io = IO(new Bundle {
@@ -23,6 +32,7 @@ class Controller(realARM: Boolean = false) extends Module {
     val rAddrB = Output(UInt(4.W))
     val rAddrC = Output(UInt(4.W))
     val wAddr = Output(UInt(4.W))
+    val wData = Output(UInt(32.W))
     val writeR = Output(Bool())
     val writePC = Output(Bool())
 
@@ -36,6 +46,18 @@ class Controller(realARM: Boolean = false) extends Module {
     val aluShiftNum = Output(UInt(8.W))
     val aluOut = Input(UInt(32.W))
     val aluCout = Input(Bool())
+
+    // For RAM
+    val ramREN = Output(Bool())
+    val ramWEN = Output(Bool())
+    val ramAddrR = Output(UInt(32.W))
+    val ramAddrW = Output(UInt(32.W))
+    val ramDataR = Input(UInt(32.W))
+    val ramDataW = Output(UInt(32.W))
+
+    // For ROM
+    val romAddr = Output(UInt(32.W))
+    val romData = Input(UInt(32.W))
 
     // For NZCV
     val writeN = Output(Bool())
@@ -57,6 +79,7 @@ class Controller(realARM: Boolean = false) extends Module {
   io.rAddrB := 0.U
   io.rAddrC := 0.U
   io.wAddr := 0.U
+  io.wData := 0.U
   io.writeR := false.B
   io.writePC := false.B
   io.aluA := 0.U
@@ -73,6 +96,12 @@ class Controller(realARM: Boolean = false) extends Module {
   io.err := false.B
   io.regsW := VecInit(Seq.fill(4)(0.U))
   io.regsWE := VecInit(Seq.fill(4)(false.B))
+  io.ramAddrR := 0.U
+  io.ramAddrW := 0.U
+  io.ramREN := false.B
+  io.ramWEN := false.B
+  io.ramDataW := 0.U
+  io.romAddr := 0.U
 
   def CM(str: String, I: UInt): Bool = {
     // 判断 I 是否符合 str 模式串（x 为通配符）
@@ -107,6 +136,7 @@ class Controller(realARM: Boolean = false) extends Module {
             ))
 
             io.wAddr := I(15, 12)
+            io.wData := io.aluOut
             io.writeR := !VecInit(Seq(
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
@@ -146,6 +176,7 @@ class Controller(realARM: Boolean = false) extends Module {
             ))
 
             io.wAddr := I(15, 12)
+            io.wData := io.aluOut
             io.writeR := !VecInit(Seq(
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
@@ -184,6 +215,7 @@ class Controller(realARM: Boolean = false) extends Module {
             ))
 
             io.wAddr := I(15, 12)
+            io.wData := io.aluOut
             io.writeR := !VecInit(Seq(
               "b1000", "b1001", "b1010", "b1011"
             ).map(_.U)).contains(I(24, 21))
@@ -208,10 +240,8 @@ class Controller(realARM: Boolean = false) extends Module {
         switch (state) {
           is (1.U) {
             io.rAddrA := I(3, 0)
-            io.aluA := io.rDataA
-            io.aluOp := "b1000".U
-
             io.wAddr := 15.U
+            io.wData := io.rDataA
             io.writeR := true.B
 
             io.done := true.B
@@ -230,6 +260,7 @@ class Controller(realARM: Boolean = false) extends Module {
             io.aluOp := "b0100".U
 
             io.wAddr := 15.U
+            io.wData := io.aluOut
             io.writeR := true.B
 
             io.done := true.B
@@ -254,6 +285,7 @@ class Controller(realARM: Boolean = false) extends Module {
             }
 
             io.wAddr := 14.U
+            io.wData := io.aluOut
             io.writeR := true.B
           }
           is (2.U) {
@@ -263,8 +295,134 @@ class Controller(realARM: Boolean = false) extends Module {
             io.aluOp := "b0100".U
 
             io.wAddr := 15.U
+            io.wData := io.aluOut
             io.writeR := true.B
 
+            io.done := true.B
+          }
+        }
+      }
+    ),
+    ( // SWP
+      I => CM("00010000", I(27, 20)) &&
+           CM("0000", I(11, 8)) &&
+           CM("1001", I(7, 4)),
+      (I, state) => {
+        switch (state) {
+          is (1.U) {
+            io.rAddrA := I(19, 16)
+
+            when (!io.rDataA(31)) {
+              // we can't write in ROM
+              io.err := true.B
+            }
+
+            io.ramAddrR := io.rDataA
+            io.ramREN := true.B
+          }
+          is (2.U) {
+            io.rAddrA := I(19, 16)
+            io.rAddrB := I(3, 0)
+
+            io.ramAddrR := io.rDataA
+            io.wAddr := I(15, 12)
+            io.wData := io.ramDataR
+            io.writeR := true.B
+
+            io.ramAddrW := io.rDataA
+            io.ramDataW := io.rDataB
+            io.ramWEN := true.B
+
+            io.done := true.B
+          }
+        }
+      }
+    ),
+    ( // LDR
+      I => CM("01xxx0x1", I(27, 20)),
+      (I, state) => {
+        io.rAddrA := I(19, 16)
+        io.rAddrC := I(3, 0)
+        io.aluA := io.rDataA
+        io.aluB := Mux(I(25), io.rDataC, I(11, 0))
+        io.aluOp := Mux(I(23), "b0100".U, "b0010".U)
+        when(I(25)) {
+          io.aluShiftOp := I(6, 4)
+          io.aluShiftNum := I(11, 7)
+        }
+
+        when (state === 1.U) {
+          val addr = Mux(I(24), io.aluOut, io.rDataA)
+          when (addr(31)) {
+            // read in RAM
+            io.ramAddrR := addr
+            io.ramREN := true.B
+            io.regsW(0) := io.ramAddrR
+            io.regsWE(0) := true.B
+            io.regsW(1) := 1.U
+            io.regsWE(1) := true.B
+          } .otherwise {
+            // read in ROM
+            io.romAddr := addr
+            io.regsW(1) := 2.U
+            io.regsWE(1) := true.B
+
+            io.wAddr := I(15, 12)
+            io.wData := io.romData
+            io.writeR := true.B
+            io.done := !(I(21) || (!I(24)))
+          }
+        } .elsewhen ((io.regsR(1) === 1.U) && (state === 2.U)) {
+          io.ramAddrR := io.regsR(0)
+        } .elsewhen ((io.regsR(1) === 1.U) && (state === 3.U)) {
+          io.ramAddrR := io.regsR(0)
+          io.wAddr := I(15, 12)
+          io.wData := io.ramDataR
+          io.writeR := true.B
+          io.done := !(I(21) || (!I(24)))
+          io.regsW(1) := 2.U
+          io.regsWE(1) := true.B
+        } .elsewhen (io.regsR(1) === 2.U) {
+          // I(21) || (!I(24))
+          io.wAddr := I(19, 16)
+          io.wData := io.aluOut
+          io.writeR := true.B
+          io.done := true.B
+        }
+      }
+    ),
+    ( // STR
+      I => CM("01xxx0x0", I(27, 20)),
+      (I, state) => {
+        io.rAddrA := I(19, 16)
+        io.rAddrB := I(15, 12)
+        io.rAddrC := I(3, 0)
+        io.aluA := io.rDataA
+        io.aluB := Mux(I(25), io.rDataC, I(11, 0))
+        io.aluOp := Mux(I(23), "b0100".U, "b0010".U)
+        when(I(25)) {
+          io.aluShiftOp := I(6, 4)
+          io.aluShiftNum := I(11, 7)
+        }
+
+        switch (state) {
+          is (1.U) {
+            when(!io.aluOut(31)) {
+              // we can't write in ROM
+              io.err := true.B
+            }
+
+            io.ramAddrW := io.aluOut
+            io.ramDataW := io.rDataB
+            io.ramWEN := true.B
+
+            io.done := !(I(21) || (!I(24)))
+          }
+          is (2.U) {
+            // I(21) || (!I(24))
+            io.wAddr := I(19, 16)
+            io.wData := io.aluOut
+            io.writeR := true.B
             io.done := true.B
           }
         }
@@ -289,6 +447,7 @@ class Controller(realARM: Boolean = false) extends Module {
               io.aluMulOp := "b11".U
 
               io.wAddr := I(19, 16)
+              io.wData := io.aluOut
               io.writeR := true.B
 
               io.done := true.B
@@ -326,6 +485,7 @@ class Controller(realARM: Boolean = false) extends Module {
 
               when (I(5)) {
                 io.wAddr := I(19, 16)
+                io.wData := io.aluOut
                 io.writeR := true.B
                 io.done := true.B
               } .otherwise {
@@ -341,6 +501,7 @@ class Controller(realARM: Boolean = false) extends Module {
               io.aluOp := "b0100".U
 
               io.wAddr := I(19, 16)
+              io.wData := io.aluOut
               io.writeR := true.B
 
               io.done := true.B
@@ -373,6 +534,7 @@ class Controller(realARM: Boolean = false) extends Module {
               io.aluOp := "b0100".U
 
               io.wAddr := I(19, 16)
+              io.wData := io.aluOut
               io.writeR := true.B
             }
             is (3.U) {
@@ -380,6 +542,7 @@ class Controller(realARM: Boolean = false) extends Module {
               io.aluOp := "b1000".U
 
               io.wAddr := I(15, 12)
+              io.wData := io.aluOut
               io.writeR := true.B
 
               io.done := true.B

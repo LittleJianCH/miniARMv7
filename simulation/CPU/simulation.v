@@ -19,6 +19,10 @@ module simulation;
 
     CP = 0; reset = 1; #30 reset = 0;
 
-    #30000 $finish;
+    while (!done) begin
+      #10;
+    end
+
+    $finish;
   end
 endmodule

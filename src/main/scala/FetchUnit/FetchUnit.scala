@@ -5,31 +5,24 @@ import chisel3.util._
 
 import ALU.Inc
 
-class FetchUnit(instrs: Seq[String] = Seq()) extends Module {
-  // the instrs are represented as binary strings *without* the leading "b"
+class FetchUnit extends Module {
   val io = IO(new Bundle {
     val nzcv = Input(UInt(4.W))
-    val pc = Input(UInt(32.W))
-    val pcNext = Output(UInt(32.W))
+    val writeEN = Input(Bool())
+    val romData = Input(UInt(32.W))
     val instr = Output(UInt(32.W))
     val cond = Output(Bool())
   })
 
-  val inc4 = Module(new Inc(30))
-  inc4.io.in := io.pc(31, 2)
-  io.pcNext := Cat(inc4.io.out, io.pc(1, 0))
+  val negClock = (~clock.asUInt).asBool.asClock
+  val IR = withClock(negClock)(Reg(UInt(32.W)))
 
-  val instrROM = VecInit((0 to 63).map(i =>
-    if (i < instrs.length) {
-      instrs(i).U(32.W)
-    } else {
-      0.U(32.W)
-    }
-  ))
+  io.instr := IR
+  when (io.writeEN) {
+    IR := io.romData
+  }
 
-  io.instr := instrROM(io.pc(7, 2))
-
-  val condCode = io.instr(31, 28)
+  val condCode = io.romData(31, 28)
 
   val N = io.nzcv(3).asBool
   val Z = io.nzcv(2).asBool

@@ -1,11 +1,13 @@
 package CPU
 
 import chisel3._
+import chisel3.util._
 
 import Controller._
 import ALU._
 import RegisterFile._
 import FetchUnit._
+import Memory._
 
 class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Module {
   // 按照 ARM 手册上的说法，在执行指令时 PC 的值应为当前指令地址 + 8 而非 + 4
@@ -36,11 +38,16 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   val controller = Module(new Controller(realARM))
   val alu = Module(new ALU)
   val registerFile = Module(new RegisterFile(realARM))
-  val fetchUnit = Module(new FetchUnit(instrs))
+  val fetchUnit = Module(new FetchUnit)
+  val ram = Module(new RAM)
+  val rom = Module(new ROM(instrs))
 
-  val IR = withClock(negClock)(Reg(UInt(32.W)))
   val PC = RegNext(registerFile.io.rPC, 0.U)
   // 加入一个 PC 寄存器作为缓冲是为了我们能同时写入 PC 和 IR
+  val pcInc4 = Module(new Inc(30))
+  pcInc4.io.in := PC(31, 2)
+  registerFile.io.wPC := Cat(pcInc4.io.out, PC(1, 0))
+
   val CPSR = withClock(negClock)(RegInit(VecInit(Seq.fill(32)(0.B))))
   val regs = withClock(negClock)(RegInit(VecInit(Seq.fill(4)(0.U(32.W)))))
   // 用于在微程序中记录数据的寄存器
@@ -52,20 +59,17 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
     }
   }
 
-  registerFile.io.wPC := fetchUnit.io.pcNext
-  fetchUnit.io.pc := PC
-
-  registerFile.io.wData := alu.io.out
   registerFile.io.mode := "b10000".U
 
   fetchUnit.io.nzcv := CPSR.asUInt(31, 28)
 
   controller.io.state := state
-  controller.io.IR := IR
+  controller.io.IR := fetchUnit.io.instr
   controller.io.cond := fetchUnit.io.cond
-  when (controller.io.writeIR) {
-    IR := fetchUnit.io.instr
-  }
+  fetchUnit.io.writeEN := controller.io.writeIR
+
+  rom.io.addrA := PC
+  fetchUnit.io.romData := rom.io.dataA
 
   controller.io.rDataA := registerFile.io.rDataA
   controller.io.rDataB := registerFile.io.rDataB
@@ -74,6 +78,7 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   registerFile.io.rAddrB := controller.io.rAddrB
   registerFile.io.rAddrC := controller.io.rAddrC
   registerFile.io.wAddr := controller.io.wAddr
+  registerFile.io.wData := controller.io.wData
   registerFile.io.wReg := controller.io.writeR
   registerFile.io.wPCReg := controller.io.writePC
 
@@ -87,6 +92,16 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   alu.io.shift_num := controller.io.aluShiftNum
   controller.io.aluOut := alu.io.out
   controller.io.aluCout := alu.io.cout
+
+  ram.io.addrR := controller.io.ramAddrR
+  ram.io.addrW := controller.io.ramAddrW
+  ram.io.dataW := controller.io.ramDataW
+  ram.io.wEN := controller.io.ramWEN
+  ram.io.rEN := controller.io.ramREN
+  controller.io.ramDataR := ram.io.dataR
+
+  rom.io.addrB := controller.io.romAddr
+  controller.io.romData := rom.io.dataB
 
   when (controller.io.writeN) {
     CPSR(31) := alu.io.nout
@@ -113,10 +128,10 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   io.B := controller.io.aluB
   io.C := 0.U
   io.F := alu.io.out
-  io.IR := IR
+  io.IR := fetchUnit.io.instr
   io.PC := registerFile.io.rPC
   io.nzcv := CPSR.asUInt(31, 28)
-  io.done := (((fetchUnit.io.instr === 0.U) && (state === 0.U)) || controller.io.err)
+  io.done := (((rom.io.dataA === 0.U) && (state === 0.U)) || controller.io.err)
   io.err := controller.io.err
   io.regs := registerFile.io.regs
 }
@@ -156,20 +171,21 @@ class CPU_Top(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mod
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "he3a00012",
-    "he1a00400",
-    "he28000d6",
-    "he1a00400",
-    "he2800087",
-    "he3a01001",
-    "he1a01401",
-    "he28110e2",
-    "he1a01401",
-    "he2811040",
-    "he3a02004",
-    "he1a02402",
-    "he28220d2",
-    "he12021c0",
+    "he24dd010",
+    "he3a00000",
+    "he58d000c",
+    "he59f1020",
+    "he58d1008",
+    "he59f101c",
+    "he58d1004",
+    "he59d1008",
+    "he59d2004",
+    "he0811002",
+    "he58d1000",
+    "he28dd010",
+    "h00000000",
+    "h0012d687",
+    "h0074cbb1",
   )
   chisel3.emitVerilog(new CPU_Top(instrs, realARM = true), Array("--target-dir", "gen"))
 }
