@@ -3,15 +3,6 @@ package Controller
 import chisel3._
 import chisel3.util._
 
-class Cond extends Module {
-  val io = IO(new Bundle {
-    val IR = Input(UInt(32.W))
-    val cond = Output(Bool())
-  })
-
-
-}
-
 class Controller(realARM: Boolean = false) extends Module {
   // Controller 负责处理所有与 IR, state 具体值相关的信号
   val io = IO(new Bundle {
