@@ -48,7 +48,7 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
   pcInc4.io.in := PC(31, 2)
   registerFile.io.wPC := Cat(pcInc4.io.out, PC(1, 0))
 
-  val CPSR = withClock(negClock)(RegInit(VecInit(Seq.fill(32)(0.B))))
+  val CPSR = withClock(negClock)(RegInit(VecInit("h10".U(32.W).asBools)))
   val regs = withClock(negClock)(RegInit(VecInit(Seq.fill(4)(0.U(32.W)))))
   // 用于在微程序中记录数据的寄存器
 
@@ -59,7 +59,7 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
     }
   }
 
-  registerFile.io.mode := "b10000".U
+  registerFile.io.mode := CPSR.asUInt(4, 0)
 
   fetchUnit.io.nzcv := CPSR.asUInt(31, 28)
 
