@@ -32,7 +32,7 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
 
   val negClock = (~clock.asUInt).asBool.asClock
 
-  val nextState = withClock(negClock)(Reg(UInt(4.W)))
+  val nextState = withClock(negClock)(Reg(UInt(8.W)))
   val state = RegNext(nextState, 0.U)
 
   val controller = Module(new Controller(realARM))
@@ -54,7 +54,9 @@ class CPU_Regs(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mo
 
   controller.io.regsR := regs
   for (i <- 0 until 4) {
-    when (controller.io.regsWE(i)) {
+    when (controller.io.done) {
+      regs(i) := 0.U
+    } .elsewhen (controller.io.regsWE(i)) {
       regs(i) := controller.io.regsW(i)
     }
   }
@@ -171,21 +173,16 @@ class CPU_Top(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Mod
 
 object CPU_Gen extends App {
   val instrs = Seq(
-    "he24dd010",
+    "he3a00001",
+    "he3a01002",
+    "he3a0302d",
+    "he3a0507b",
+    "he92d002b",
     "he3a00000",
-    "he58d000c",
-    "he59f1020",
-    "he58d1008",
-    "he59f101c",
-    "he58d1004",
-    "he59d1008",
-    "he59d2004",
-    "he0811002",
-    "he58d1000",
-    "he28dd010",
-    "h00000000",
-    "h0012d687",
-    "h0074cbb1",
+    "he3a01000",
+    "he3a03000",
+    "he3a05000",
+    "he8bd002b",
   )
   chisel3.emitVerilog(new CPU_Top(instrs, realARM = true), Array("--target-dir", "gen"))
 }

@@ -33,7 +33,9 @@ module simulation;
 
     addrR = 1; rEN = 1; #20 rEN = 0;
 
-    addrW = 2; dataW = 789; wEN = 1; addrR = 2; rEN = 1; #20 wEN = 0; rEN = 0;
+    addrW = 2; dataW = 789; wEN = 1; addrR = 2; rEN = 1; #20 wEN = 0; rEN = 0; 
+
+    rEN = 1; addrR = 0; #20 addrR = 1; #20 addrR = 2; #20
 
     $finish;
   end

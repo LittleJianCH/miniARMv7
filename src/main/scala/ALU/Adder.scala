@@ -50,6 +50,21 @@ class Inc(width: Int) extends Module {
   io.carry := io.in.andR
 }
 
+
+class Dec(width: Int) extends Module {
+  val io = IO(new Bundle {
+    val in = Input(UInt(width.W))
+    val out = Output(UInt(width.W))
+    val carry = Output(UInt(1.W))
+  })
+
+  io.out := VecInit((0 until width).map { i =>
+    if (i == 0) !io.in(0)
+    else (io.in(i - 1, 0) === 0.U) ^ io.in(i)
+  }).asUInt
+  io.carry := (io.in === 0.U)
+}
+
 class Adder(width: Int) extends Module {
   val io = IO(new Bundle {
     val a = Input(UInt(width.W))

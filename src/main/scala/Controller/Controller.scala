@@ -2,12 +2,39 @@ package Controller
 
 import chisel3._
 import chisel3.util._
+import scalaz._
+
+import ALU._
+
+class FindKTH extends Module {
+  val io = IO(new Bundle {
+    val k = Input(UInt(4.W))
+    val bin = Input(UInt(16.W))
+    val x = Output(UInt(5.W))
+    val cnt = Output(UInt(5.W))
+  })
+
+  val prefixSum = (0 until 16).scanLeft(0.U) { (acc, i) =>
+    val inc = Module(new Inc(5))
+    inc.io.in := acc
+    Mux(io.bin(i), inc.io.out, acc)
+  }.tail
+
+  io.cnt := prefixSum.last
+
+  io.x := prefixSum.zipWithIndex.foldLeft("b10000".U) { (acc, pair) =>
+    val index = pair._2.U
+    val count = pair._1
+
+    Mux((count === io.k) && acc(4), index, acc)
+  }
+}
 
 class Controller(realARM: Boolean = false) extends Module {
   // Controller 负责处理所有与 IR, state 具体值相关的信号
   val io = IO(new Bundle {
     // state
-    val state = Input(UInt(4.W))
+    val state = Input(UInt(8.W))
     val done = Output(Bool())
 
     // For FetchUnit
@@ -102,6 +129,10 @@ class Controller(realARM: Boolean = false) extends Module {
       (str(i) == 'x').B || ((str(i) == '1').B === I(n - i - 1))
     }).asUInt.andR
   }
+
+  val findKTH = Module(new FindKTH)
+  findKTH.io.k := DontCare
+  findKTH.io.bin := DontCare
 
   val instr_map: List[(UInt => Bool, (UInt, UInt) => Unit)] = List(
     ( // Data-processing (register)
@@ -341,15 +372,14 @@ class Controller(realARM: Boolean = false) extends Module {
           io.aluShiftOp := I(6, 4)
           io.aluShiftNum := I(11, 7)
         }
+        val addr = Mux(I(24), io.aluOut, io.rDataA)
+        io.ramAddrR := addr
 
         when (state === 1.U) {
-          val addr = Mux(I(24), io.aluOut, io.rDataA)
           when (addr(31)) {
             // read in RAM
             io.ramAddrR := addr
             io.ramREN := true.B
-            io.regsW(0) := io.ramAddrR
-            io.regsWE(0) := true.B
             io.regsW(1) := 1.U
             io.regsWE(1) := true.B
           } .otherwise {
@@ -363,10 +393,7 @@ class Controller(realARM: Boolean = false) extends Module {
             io.writeR := true.B
             io.done := !(I(21) || (!I(24)))
           }
-        } .elsewhen ((io.regsR(1) === 1.U) && (state === 2.U)) {
-          io.ramAddrR := io.regsR(0)
         } .elsewhen ((io.regsR(1) === 1.U) && (state === 3.U)) {
-          io.ramAddrR := io.regsR(0)
           io.wAddr := I(15, 12)
           io.wData := io.ramDataR
           io.writeR := true.B
@@ -416,6 +443,105 @@ class Controller(realARM: Boolean = false) extends Module {
             io.writeR := true.B
             io.done := true.B
           }
+        }
+      }
+    ),
+    ( // LTM
+      // 为方便起见，我们暂时假定块访存指令无法访问 ROM
+      I => CM("100xxxx1", I(27, 20)),
+      (I, state) => {
+        val incState = Module(new Inc(7))
+        incState.io.in := state
+        val cycle = incState.io.out(6, 1)
+
+        findKTH.io.bin := Mux(I(24),
+          VecInit(I(15, 0).asBools.reverse).asUInt,
+          I(15, 0)
+        )
+        findKTH.io.k := cycle
+        val tmpX = findKTH.io.x
+        val x = Mux(I(24),
+          Mux(tmpX(4), tmpX, VecInit((0 to 15).reverse.map(_.U))(tmpX)),
+          tmpX
+        )
+
+        io.rAddrA := I(19, 16)
+        io.aluA := io.rDataA
+        io.aluShiftNum := 2.U
+        io.aluShiftOp := "b000".U
+        io.aluOp := Mux(I(23), "b0100".U, "b0010".U)
+        when (x(4)) {
+          when (!state(0)) {
+            when(I(21)) {
+              io.aluB := findKTH.io.cnt
+
+              io.wData := io.aluOut
+              io.wAddr := I(19, 16)
+              io.writeR := true.B
+            }
+
+            io.done := true.B
+          }
+        } .otherwise {
+          val decCycle = Module(new Dec(5))
+          decCycle.io.in := cycle
+          io.aluB := Mux(I(24), state, decCycle.io.out)
+          io.ramAddrR := io.aluOut
+
+          when (state(0)) {
+            io.ramREN := true.B
+            io.regsW(0) := 1.U
+            io.regsWE(0) := true.B
+            io.regsW(1) := x
+            io.regsWE(1) := true.B
+          }
+        }
+
+        when (state(0) && (io.regsR(0) === 1.U)) {
+          io.wAddr := io.regsR(1)
+          io.wData := io.ramDataR
+          io.writeR := true.B
+        }
+      }
+    ),
+    ( // STM
+      I => CM("100xxxx0", I(27, 20)),
+      (I, state) => {
+        findKTH.io.bin := Mux(I(24),
+          VecInit(I(15, 0).asBools.reverse).asUInt,
+          I(15, 0)
+        )
+        findKTH.io.k := state
+        val tmpX = findKTH.io.x
+        val x = Mux(I(24),
+          Mux(tmpX(4), tmpX, VecInit((0 to 15).reverse.map(_.U))(tmpX)),
+          tmpX
+        )
+
+        io.rAddrA := I(19, 16)
+        io.aluA := io.rDataA
+        io.aluShiftNum := 2.U
+        io.aluShiftOp := "b000".U
+        io.aluOp := Mux(I(23), "b0100".U, "b0010".U)
+        when (x(4)) {
+          when (I(21)) {
+            io.aluB := findKTH.io.cnt
+
+            io.wData := io.aluOut
+            io.wAddr := I(19, 16)
+            io.writeR := true.B
+          }
+
+          io.done := true.B
+        } .otherwise {
+          val decState = Module(new Dec(5))
+          decState.io.in := state
+          io.aluB := Mux(I(24), state, decState.io.out)
+
+          io.rAddrB := x
+          io.ramAddrW := io.aluOut
+          io.ramDataW := io.rDataB
+          io.ramWEN := true.B
         }
       }
     ),
