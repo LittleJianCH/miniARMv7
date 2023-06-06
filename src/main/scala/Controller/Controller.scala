@@ -303,7 +303,7 @@ class Controller(realARM: Boolean = false) extends Module {
             } else {
               // 由于模拟了 PC + 2 的行为，在 BL 时存入的值应为 (PC + 2) - 1
               io.aluOp := "b0010".U
-              io.aluB := 1.U
+              io.aluB := 4.U
             }
 
             io.wAddr := 14.U
@@ -673,11 +673,10 @@ class Controller(realARM: Boolean = false) extends Module {
   when (io.state === 0.U) {
     when (io.cond) {
       io.writeIR := true.B
-      io.writePC := true.B
     } .otherwise {
       io.done := true.B
-      io.writePC := true.B
     }
+    io.writePC := true.B
   } .otherwise {
     val matched = Wire(Bool())
     matched := false.B

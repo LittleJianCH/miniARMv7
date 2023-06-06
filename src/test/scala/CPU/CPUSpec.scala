@@ -215,4 +215,70 @@ class CPUSpec extends AnyFreeSpec with ChiselScalatestTester {
       regs(13).expect(0.U)
     }
   }
+
+  "test cpu Fibonacci" in {
+    test(new CPU_Regs(Seq(
+      /*
+      int fib(int n) {
+          return n <= 1 ? 1 : fib(n - 1) + fib(n - 1);
+      }
+
+      int main() {
+          int x = 5;
+          int y = fib(x);
+          return 0;
+      }
+      */
+      "he92d4800",
+      "he1a0b00d",
+      "he24dd010",
+      "he3a00000",
+      "he58d0000",
+      "he50b0004",
+      "he3a00005",
+      "he58d0008",
+      "he59d0008",
+      "heb000005",
+      "he1a01000",
+      "he59d0000",
+      "he58d1004",
+      "he1a0d00b",
+      "he8bd4800",
+      "h00000000",
+      "he92d4800",
+      "he1a0b00d",
+      "he24dd010",
+      "he50b0004",
+      "he51b0004",
+      "he3500001",
+      "hca000003",
+      "heaffffff",
+      "he3a00001",
+      "he58d0008",
+      "hea00000b",
+      "he51b0004",
+      "he2400001",
+      "hebfffff1",
+      "he58d0004",
+      "he51b0004",
+      "he2400002",
+      "hebffffed",
+      "he1a01000",
+      "he59d0004",
+      "he0800001",
+      "he58d0008",
+      "heaffffff",
+      "he59d0008",
+      "he1a0d00b",
+      "he8bd4800",
+      "he12fff1e",
+    ), realARM = true)) { p =>
+      while (!p.io.done.peekBoolean()) {
+        p.clock.step()
+      }
+
+      val regs = p.io.regs
+      regs(1).expect(8.U)
+    }
+  }
 }

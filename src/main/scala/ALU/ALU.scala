@@ -50,6 +50,7 @@ class AddUnit extends Module {
     val cin = Input(UInt(1.W))
     val out = Output(UInt(32.W))
     val cout = Output(UInt(1.W))
+    val vout = Output(UInt(1.W))
   })
 
   val adder = Module(new Adder(33))
@@ -86,6 +87,8 @@ class AddUnit extends Module {
 
   io.out := r33(31, 0)
   io.cout := r33(32) ^ io.op(1)
+  io.vout := (adder.io.a(31) === adder.io.b(31)) &&
+             (adder.io.a(31) =/= io.out(31))
 }
 
 class MulUnit extends Module {
@@ -168,7 +171,7 @@ class ALU extends Module {
     "b1110".U -> barrel_shifter.io.Shift_Carry_Out,
     "b1111".U -> barrel_shifter.io.Shift_Carry_Out,
   ))
-  io.vout := add_unit.io.a(31) ^ add_unit.io.b(31) ^ io.out(31) ^ io.cout
+  io.vout := add_unit.io.vout
 }
 
 object ALU_Gen extends App {
