@@ -22,7 +22,7 @@ class Board(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Modul
     val clock_digit = Input(Clock())
   })
 
-  val display = withClock(io.clock_digit)(Module(new SevenSegmentDisplay(digit = 8, div = 1<<17)))
+  val display = withClock(io.clock_digit)(Module(new SevenSegmentDisplay(digit = 8, div = 1<<15)))
 
   io.segments := display.io.seg
   io.segmentsCtrl := display.io.ctrl
@@ -60,27 +60,67 @@ class Board(instrs: Seq[String] = Seq(), realARM: Boolean = false) extends Modul
     "b1000".U -> cpu.io.A,
     "b0100".U -> cpu.io.B,
     "b0010".U -> cpu.io.IR,
-    "b0001".U -> Cat(cpu.io.writePC,"b010".U,cpu.io.writeIR,"b010".U,cpu.io.writeReg,"b010".U,cpu.io.nzcv,"b010".U,cpu.io.done,"b010".U,cpu.io.err),
+    "b0001".U -> Cat(
+      cpu.io.writePC,
+      "b010".U(3.W),
+      cpu.io.writeIR,
+      "b010".U(3.W),
+      cpu.io.writeReg,
+      "b010".U(3.W),
+      cpu.io.nzcv,
+      "b010".U(3.W),
+      cpu.io.done,
+      "b010".U(3.W),
+      cpu.io.err
+    ),
   ))
 }
 
 object Board_Gen extends App {
   val instrs = Seq(
+    "he92d4800",
+    "he1a0b00d",
     "he24dd010",
     "he3a00000",
-    "he58d000c",
-    "he59f1020",
-    "he58d1008",
-    "he59f101c",
+    "he58d0000",
+    "he50b0004",
+    "he3a00005",
+    "he58d0008",
+    "he59d0008",
+    "heb000005",
+    "he1a01000",
+    "he59d0000",
     "he58d1004",
-    "he59d1008",
-    "he59d2004",
-    "he0811002",
-    "he58d1000",
-    "he28dd010",
+    "he1a0d00b",
+    "he8bd4800",
     "h00000000",
-    "h0012d687",
-    "h0074cbb1",
+    "he92d4800",
+    "he1a0b00d",
+    "he24dd010",
+    "he50b0004",
+    "he51b0004",
+    "he3500001",
+    "hca000003",
+    "heaffffff",
+    "he3a00001",
+    "he58d0008",
+    "hea00000b",
+    "he51b0004",
+    "he2400001",
+    "hebfffff1",
+    "he58d0004",
+    "he51b0004",
+    "he2400002",
+    "hebffffed",
+    "he1a01000",
+    "he59d0004",
+    "he0800001",
+    "he58d0008",
+    "heaffffff",
+    "he59d0008",
+    "he1a0d00b",
+    "he8bd4800",
+    "he12fff1e",
   )
   chisel3.emitVerilog(new Board(instrs, realARM = true), Array("--target-dir", "gen"))
 }
